@@ -81,27 +81,80 @@ export default function App() {
     setTyped("");
   }
 
+  const lastAgent = [...lines].reverse().find((l) => l.role === "agent")?.text;
+  const lastUser = [...lines].reverse().find((l) => l.role === "user")?.text;
+  const voiceState = !connected ? "off" : convo.isSpeaking ? "speaking" : "listening";
+  const liveTrading = portfolio && portfolio.broker !== "mock";
+  const devilActive = !!devil?.active;
+  const resourcesActive = !!resources?.asset;
+
   return (
     <div className="app">
       <AgentTools onChange={refresh} />
-      <header>
-        <div>
-          <h1>Talk-to-Trade</h1>
-          <div className="muted">Your portfolio, by voice.</div>
+      <header className="topbar">
+        <div className="brand">
+          <span className="logo">T</span>
+          <div>
+            <h1>Ticker</h1>
+            <div className="muted small">Talk-to-Trade · voice crypto trading on True Markets</div>
+          </div>
         </div>
-        <button className={`talk ${connected ? "on" : ""}`} onClick={toggleTalk}>
-          <span className={`dot ${connected ? (convo.isSpeaking ? "speaking" : "listening") : ""}`} />
-          {connected ? (convo.isSpeaking ? "Speaking… tap to end" : "Listening… tap to end") : "Talk"}
-        </button>
+        <div className="pills">
+          <span className={`pill ${liveTrading ? "ok" : "warn"}`}>{liveTrading ? "Live trading" : "Practice mode"}</span>
+          <span className={`pill ${voiceState === "off" ? "" : "ok"}`}>Voice {voiceState === "off" ? "off" : "on"}</span>
+        </div>
       </header>
 
-      <main>
+      <section className={`stage ${voiceState}`}>
+        <button className="orb" onClick={toggleTalk} aria-label={connected ? "End voice session" : "Start talking to Ticker"}>
+          <span className="ring r1" />
+          <span className="ring r2" />
+          <span className="orb-core">{voiceState === "off" ? "Talk" : voiceState === "speaking" ? "Speaking" : "Listening"}</span>
+        </button>
+        <div className="caption">
+          {lastAgent ? (
+            <>
+              {lastUser && <div className="you">“{lastUser}”</div>}
+              <div className="said">{lastAgent}</div>
+            </>
+          ) : (
+            <div className="said muted">Press Talk and just ask. No mouse needed after that.</div>
+          )}
+        </div>
+        <div className="chips" aria-label="Things you can say">
+          {[
+            "How's my portfolio?",
+            "What's SOL at?",
+            "Buy one dollar of SOL",
+            "Give me a second opinion on SOL",
+            "What should I read about SOL?",
+          ].map((c) => (
+            <span key={c} className="chip">“{c}”</span>
+          ))}
+        </div>
+      </section>
+
+      <main className="grid">
         <div className="col">
-          <MarketCard markets={markets} />
           <PortfolioCard p={portfolio} />
+          <MarketCard markets={markets} liveTrading={!!liveTrading} />
+        </div>
+        <div className="col focus">
           <PendingCard trade={pending} onConfirm={confirmClick} onCancel={cancelClick} />
-          <DevilCard d={devil} onReset={() => api.devilReset().then(refresh)} />
-          <ResourcesCard r={resources} />
+          {devilActive && <DevilCard d={devil} onReset={() => api.devilReset().then(refresh)} />}
+          {resourcesActive && <ResourcesCard r={resources} />}
+          {!pending && !devilActive && !resourcesActive && (
+            <section className="card idle">
+              <h2>Right now</h2>
+              <p className="muted">
+                Quotes waiting for “confirm”, devil’s-advocate questions and reading lists show up here as you talk.
+              </p>
+              <p className="muted small">
+                Ask for a second opinion and Ticker challenges your reasoning with SEC filings and press releases. It never tells you
+                to buy or sell.
+              </p>
+            </section>
+          )}
         </div>
         <div className="col">
           <Transcript lines={lines} />
@@ -109,7 +162,7 @@ export default function App() {
             <input
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
-              placeholder={connected ? "Or type to the agent…" : "Start a session to type"}
+              placeholder={connected ? "Or type to Ticker…" : "Start a voice session to type"}
               disabled={!connected}
             />
           </form>
@@ -117,7 +170,7 @@ export default function App() {
         </div>
       </main>
       <footer className="muted small">
-        Educational demo. Trades are capped and require confirmation. Not financial advice.
+        Educational demo. Trades are capped at $10, need your spoken “confirm”, and run on True Markets. Not financial advice.
       </footer>
     </div>
   );

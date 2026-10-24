@@ -1,0 +1,87 @@
+:root {
+  --bg: #0b0e14;
+  --panel: #131823;
+  --line: #232a38;
+  --text: #e8ecf3;
+  --muted: #8b95a7;
+  --accent: #7c9cff;
+  --buy: #2ecc8f;
+  --sell: #ff6b6b;
+  --warn: #f5b84a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 16px;
+}
+h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
+h2 { margin: 0 0 12px; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+.right { text-align: right; }
+
+.app { max-width: 1100px; margin: 0 auto; padding: 28px 20px 40px; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
+main { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+footer { margin-top: 28px; text-align: center; }
+@media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+.card-head { display: flex; justify-content: space-between; align-items: baseline; }
+.badge { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid; }
+.badge.warn { color: var(--warn); }
+.badge.live { color: var(--buy); }
+
+.total { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; }
+.positions { list-style: none; padding: 0; margin: 18px 0 0; display: flex; flex-direction: column; gap: 12px; }
+.pos-row { display: grid; grid-template-columns: 70px 1fr auto; gap: 8px; align-items: baseline; }
+.sym { font-weight: 600; }
+.bar { height: 6px; background: var(--line); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.4s; }
+
+.pending { border-width: 2px; }
+.pending.buy { border-color: var(--buy); }
+.pending.sell { border-color: var(--sell); }
+.pending-line { font-size: 22px; margin: 6px 0 4px; }
+.actions { display: flex; gap: 10px; margin: 16px 0 8px; }
+
+button {
+  font: inherit; font-weight: 600; color: var(--text); background: transparent;
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 18px; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--muted); }
+button:disabled { opacity: 0.4; cursor: default; }
+button.primary { background: var(--buy); border-color: var(--buy); color: #04140d; }
+
+.talk { display: flex; align-items: center; gap: 10px; padding: 14px 24px; font-size: 18px; border-radius: 999px; background: var(--accent); border-color: var(--accent); color: #0b1020; }
+.talk.on { background: transparent; color: var(--text); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: #0b1020; }
+.dot.listening { background: var(--buy); animation: pulse 1.4s infinite; }
+.dot.speaking { background: var(--accent); animation: pulse 0.6s infinite; }
+@keyframes pulse { 50% { opacity: 0.3; } }
+
+.transcript ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
+.transcript li { padding: 8px 12px; border-radius: 10px; line-height: 1.4; }
+.transcript li.user { background: #1d2433; align-self: flex-end; max-width: 85%; }
+.transcript li.agent { background: #182033; border: 1px solid var(--line); max-width: 85%; }
+.transcript li.system { color: var(--muted); font-size: 13px; padding: 2px 4px; }
+
+.typebox input {
+  width: 100%; font: inherit; color: var(--text); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+}
+.typebox input:disabled { opacity: 0.5; }
+
+.log { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.log li { display: grid; grid-template-columns: 50px 1fr auto; gap: 4px 10px; align-items: baseline; }
+.log li .small { grid-column: 2 / 4; }
+.side { font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.side.buy { color: var(--buy); }
+.side.sell { color: var(--sell); }

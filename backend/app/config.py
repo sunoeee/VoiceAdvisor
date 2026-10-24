@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     llm_model: str = "qwen2.5:7b-instruct"
     llm_timeout_seconds: float = 20.0
 
+    # SEC EDGAR asks for a User-Agent with a contact email on automated requests.
+    sec_user_agent: str = "Talk-to-Trade hackathon demo (set SEC_USER_AGENT to include your email)"
+
     cors_origins: str = "http://localhost:5173"
 
     @property

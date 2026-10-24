@@ -100,8 +100,29 @@ Open <http://localhost:5173>, press **Talk**, and allow the microphone.
 | POST | `/api/trades/execute` | `{confirmation_id}` → places the order |
 | POST | `/api/trades/cancel` | `{confirmation_id?}` → drops the pending quote |
 | GET | `/api/trades` | Pending quote and trade history |
+| POST | `/api/devil/challenge` | `{asset, text, restart?}` → next devil's-advocate question (or the wrap-up after 3) |
+| GET | `/api/devil` | Current thesis, questions, answers and cited source quotes |
+| POST | `/api/devil/reset` | Clears the devil session |
+| GET | `/api/resources/{asset}` | Vetted sources plus recent SEC filings mentioning the asset (live from EDGAR full-text search) |
+| GET | `/api/resources` | The last resource set gathered (for the on-screen card) |
 
 Most responses include `say`: a sentence the agent can read aloud verbatim.
+
+## Devil's advocate
+
+Before a trade, the user can tell Ticker why they like an asset and ask it to play
+devil's advocate. The open model asks up to three pointed questions, one at a time,
+using only excerpts in `backend/app/packets/` (SEC filings and press releases for
+BTC, ETH and SOL). The backend rejects any question that cites an excerpt not in the
+packet or sounds like advice, and falls back to pre-written questions if the model is
+down. The on-screen card shows each question with the exact quote and a link to the
+filing. The devil never places, blocks or recommends a trade. Packets are marked
+`draft_needs_human_review`: check each quote against the linked original before the demo.
+
+Ask "What should I read about SOL?" and the `find_resources` tool lists the devil's
+vetted sources plus recent SEC filings that mention the asset, pulled live from SEC
+EDGAR full-text search (set `SEC_USER_AGENT` in `backend/.env` with your email, as the
+SEC requires). Every link comes from a source, never from the model.
 
 ## Repo map and owners
 
@@ -111,6 +132,7 @@ Most responses include `say`: a sentence the agent can read aloud verbatim.
 | API and portfolio | `backend/app/main.py`, `backend/app/portfolio.py` | _name_ |
 | Open model and prompts | `backend/app/llm.py` | _name_ |
 | Voice agent | `agent/`, `frontend/src/AgentTools.tsx` | _name_ |
+| Devil's advocate + resources | `backend/app/devil.py`, `backend/app/resources.py`, `backend/app/packets/`, `DevilCard`/`ResourcesCard` in `frontend/src/components.tsx` | Jonathan |
 | UI | `frontend/src/App.tsx`, `frontend/src/components.tsx`, `frontend/src/styles.css` | _name_ |
 
 ## Team workflow

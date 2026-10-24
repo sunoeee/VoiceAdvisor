@@ -1,7 +1,7 @@
 # ElevenLabs agent: client tools
 
 In the ElevenLabs dashboard → your agent → **Tools** → **Add tool** → type
-**Client**. Create these six. For every one:
+**Client**. Create these eight. For every one:
 
 - The name must match exactly (the frontend registers these names in
   `frontend/src/AgentTools.tsx`).
@@ -15,6 +15,8 @@ In the ElevenLabs dashboard → your agent → **Tools** → **Add tool** → ty
 | `get_price` | Gets the current US dollar price of one asset. | `asset` (string, required): symbol such as BTC, ETH or SOL |
 | `prepare_trade` | Prepares a buy or sell and returns a quote that must be read back to the user. Does NOT place the trade. | `asset` (string, required): BTC, ETH or SOL · `side` (string, required): "buy" or "sell" · `usd_amount` (number, required): dollars to spend or receive |
 | `confirm_trade` | Places the trade the user just confirmed out loud. Only call right after the user says confirm. | `confirmation_id` (string, required): the id returned by prepare_trade |
+| `challenge_thesis` | Plays devil's advocate on the user's reason for liking an asset. Returns one pointed, source-backed question at a time; read the `say` field aloud. Call again with the user's answer until `done` is true. Never places or blocks a trade. | `asset` (string, required): BTC, ETH or SOL · `user_text` (string, required): the user's thesis on the first call, their answer after that · `restart` (boolean, optional): true to start over with a new thesis |
+| `find_resources` | Gathers documents to read about an asset: the vetted sources the devil cites plus recent SEC filings that mention it, shown on screen. Read the `say` field aloud. | `asset` (string, required): BTC, ETH or SOL |
 | `cancel_trade` | Cancels the trade that is waiting for confirmation. | `confirmation_id` (string, optional) |
 
 ## Other agent settings

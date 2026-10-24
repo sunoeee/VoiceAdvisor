@@ -121,32 +121,57 @@ class MockBroker(Broker):
 # ---------------------------------------------------------------------------
 
 
-class TrueMarketsBroker(Broker):
-    """Real trading via the `truemarkets` SDK (CeFi market orders against USDC).
-
-    Flow per the SDK: compute_quote (preview) -> create_order -> if the order
-    comes back `initialized` with payloads, sign them and execute_order ->
-    poll get_order_status.
-    """
+class TrueMarketsPrices:
+    """Read-only True Markets prices. compute_quote previews a price; it does not place an order."""
 
     name = "truemarkets"
 
     def __init__(self, quote_asset: str = "USDC"):
-        # Imported lazily so mock mode works without the SDK configured.
-        from truemarkets import Client
-        from truemarkets._generated.gateway import models as m
-        from truemarkets._generated.gateway.types import Unset
-
         self.quote_asset = quote_asset
-        self.m = m
-        self._Unset = Unset
-        try:
-            self.client = Client()
-        except Exception as e:
-            raise BrokerError(f"Could not start the True Markets client: {e}") from e
+        self.client = None
+        self.m = None
+        self._Unset = None
+        self._init_lock = threading.Lock()
         self._lock = threading.Lock()
 
-    # -- helpers -------------------------------------------------------------
+    def _ensure(self) -> None:
+        if self.client is not None:
+            return
+        with self._init_lock:
+            if self.client is not None:
+                return
+            try:
+                from truemarkets import Client
+                from truemarkets._generated.gateway import models as m
+                from truemarkets._generated.gateway.types import Unset
+
+                _allow_access_token_without_refresh()
+            except Exception as e:
+                raise BrokerError(f"Could not start the True Markets client: {e}") from e
+            self.m = m
+            self._Unset = Unset
+            try:
+                client = Client()
+            except Exception as e:
+                raise BrokerError(f"Could not start the True Markets client: {e}") from e
+            if not client.key_file:
+                client.close()
+                raise BrokerError(
+                    "Set TM_KEY_FILE in backend/.env to the JSON file from truemarkets.co, Settings, API Keys. "
+                    "Live prices need that key. Trades stay on the mock portfolio and no order is sent."
+                )
+            self.client = client
+
+    def get_price(self, asset: str) -> float:
+        self._ensure()
+        asset = asset.upper()
+        if asset == self.quote_asset:
+            return 1.0
+        q = self._compute_quote(asset, "buy", 10, "quote")  # $10 preview, no order
+        price = self._v(q.price)
+        if not price:
+            raise BrokerError(f"No price returned for {asset}.")
+        return float(price)
 
     def _v(self, x):
         return None if isinstance(x, self._Unset) else x
@@ -183,19 +208,19 @@ class TrueMarketsBroker(Broker):
             ),
         )
 
-    # -- interface -----------------------------------------------------------
 
-    def get_price(self, asset: str) -> float:
-        asset = asset.upper()
-        if asset == self.quote_asset:
-            return 1.0
-        q = self._compute_quote(asset, "buy", 10, "quote")  # $10 preview
-        price = self._v(q.price)
-        if not price:
-            raise BrokerError(f"No price returned for {asset}.")
-        return float(price)
+class TrueMarketsBroker(TrueMarketsPrices, Broker):
+    """Real trading via the `truemarkets` SDK (CeFi market orders against USDC).
+
+    Flow per the SDK: compute_quote (preview) -> create_order -> if the order
+    comes back `initialized` with payloads, sign them and execute_order ->
+    poll get_order_status.
+    """
+
+    name = "truemarkets"
 
     def get_holdings(self) -> dict[str, float]:
+        self._ensure()
         resp = self._call("balances", self.client.gateway.list_balances)
         out: dict[str, float] = {}
         for item in self._v(resp.data) or []:
@@ -206,6 +231,7 @@ class TrueMarketsBroker(Broker):
         return out
 
     def quote(self, asset: str, side: str, usd: float) -> Quote:
+        self._ensure()
         if side == "buy":
             q = self._compute_quote(asset, "buy", usd, "quote")
             base_qty = float(self._v(q.qty) or 0)
@@ -220,6 +246,7 @@ class TrueMarketsBroker(Broker):
         return Quote(asset=asset, side=side, usd=usd, base_qty=base_qty, price=price)
 
     def execute(self, q: Quote) -> Fill:
+        self._ensure()
         m = self.m
         with self._lock:
             if q.side == "buy":
@@ -284,6 +311,24 @@ class TrueMarketsBroker(Broker):
         return status
 
 
+def _allow_access_token_without_refresh() -> None:
+    """Org API keys return an access token and no refresh token. SDK 0.3.0 requires both."""
+    from truemarkets._generated.authapi.models.access_tokens_response import AccessTokensResponse
+
+    current = AccessTokensResponse.from_dict
+    if getattr(current, "_tm_patched", False):
+        return
+    raw = current.__func__
+
+    def from_dict(cls, src_dict):
+        data = dict(src_dict)
+        data.setdefault("refresh_token", "")
+        return raw(cls, data)
+
+    from_dict._tm_patched = True
+    AccessTokensResponse.from_dict = classmethod(from_dict)
+
+
 def _fmt(x: float) -> str:
     """Decimal string without scientific notation, max 8 dp."""
     return f"{x:.8f}".rstrip("0").rstrip(".")
@@ -292,4 +337,11 @@ def _fmt(x: float) -> str:
 def make_broker(mode: str, quote_asset: str) -> Broker:
     if mode == "live":
         return TrueMarketsBroker(quote_asset=quote_asset)
+    return MockBroker(quote_asset=quote_asset)
+
+
+def make_market(mode: str, quote_asset: str):
+    """Price source. Live mode only calls compute_quote; it has no execute method."""
+    if mode == "live":
+        return TrueMarketsPrices(quote_asset=quote_asset)
     return MockBroker(quote_asset=quote_asset)

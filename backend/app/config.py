@@ -8,6 +8,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    # live = True Markets quotes and prices only. Orders stay on broker_mode.
+    market_mode: Literal["mock", "live"] = "live"
+    # mock = fake balances, no orders sent. live = real True Markets orders.
     broker_mode: Literal["mock", "live"] = "mock"
 
     # Guardrails

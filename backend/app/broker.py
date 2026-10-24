@@ -27,6 +27,7 @@ class Quote:
     usd: float  # notional in quote asset (USDC)
     base_qty: float  # estimated asset quantity
     price: float  # USD per 1 unit of asset
+    ref: str | None = None  # broker's own id for the prepared order, if any
 
 
 @dataclass
@@ -334,7 +335,157 @@ def _fmt(x: float) -> str:
     return f"{x:.8f}".rstrip("0").rstrip(".")
 
 
+# ---------------------------------------------------------------------------
+# Tensho broker: trade through the local Tensho wallet server
+# ---------------------------------------------------------------------------
+
+STABLES = {"USDC", "PYUSD", "USDG", "USDT"}
+
+
+class TenshoBroker(Broker):
+    """Trades through a running Tensho server (true-markets/examples tensho-wallet).
+
+    Tensho holds the True Markets org key and the wallet signer key, and places
+    every order for its signed-in customer as a Gateway user, pinned to the DeFi
+    venue. This lets the voice app trade the same wallet the team funded, with
+    no mouse: prepare = POST /api/orders (quote, nothing signed), execute =
+    POST /api/orders/{id}/execute (signs and submits), then poll the order.
+    Tensho re-quotes server-side if the reviewed quote is more than ~20s old.
+    """
+
+    name = "tensho"
+
+    def __init__(self, base_url: str, email: str, password: str, asset_map: str, http=None):
+        import httpx
+
+        if not (email and password):
+            raise BrokerError("Set TENSHO_EMAIL and TENSHO_PASSWORD in backend/.env to use Tensho.")
+        self.email, self.password = email, password
+        self.http = http or httpx.Client(base_url=base_url.rstrip("/"), timeout=20.0)
+        # "BTC=CBBTC@base,SOL=SOL@solana" -> {"BTC": ("CBBTC", "base"), ...}
+        self.map: dict[str, tuple[str, str]] = {}
+        for pair in asset_map.split(","):
+            if "=" in pair:
+                ours, theirs = pair.split("=", 1)
+                sym, _, chain = theirs.partition("@")
+                self.map[ours.strip().upper()] = (sym.strip().upper(), (chain or "solana").strip().lower())
+        self._back = {v[0]: k for k, v in self.map.items()}
+        self._lock = threading.Lock()
+        self._logged_in = False
+
+    # -- http ----------------------------------------------------------------
+
+    def _login(self) -> None:
+        r = self.http.post("/api/login", json={"email": self.email, "password": self.password})
+        if r.status_code != 200:
+            raise BrokerError("Tensho sign-in failed. Check TENSHO_EMAIL and TENSHO_PASSWORD.")
+        self._logged_in = True
+
+    def _req(self, method: str, path: str, body: dict | None = None) -> dict:
+        try:
+            if not self._logged_in:
+                self._login()
+            r = self.http.request(method, path, json=body)
+            if r.status_code == 401:
+                self._login()
+                r = self.http.request(method, path, json=body)
+        except BrokerError:
+            raise
+        except Exception as e:  # connection refused, timeout
+            raise BrokerError("I can't reach the Tensho wallet server. Is it running on port 4747?") from e
+        try:
+            data = r.json()
+        except ValueError:
+            data = {}
+        if r.status_code >= 400:
+            msg = data.get("message") or f"error {r.status_code}"
+            if "insufficient" in msg.lower():
+                msg = "There isn't enough balance in the wallet for that."
+            raise BrokerError(msg)
+        return data
+
+    def _asset(self, asset: str) -> dict:
+        asset = asset.upper()
+        if asset not in self.map:
+            raise BrokerError(f"{asset} isn't set up for trading in Tensho.")
+        sym, chain = self.map[asset]
+        for a in self._req("GET", "/api/assets"):
+            if a.get("symbol", "").upper() == sym and (a.get("chain") or "solana") == chain and not a.get("cash"):
+                return a
+        raise BrokerError(f"Tensho doesn't offer {sym} on {chain}. Add it to Tensho's TM_TOKENS.")
+
+    # -- interface -----------------------------------------------------------
+
+    def get_price(self, asset: str) -> float:
+        if asset.upper() in STABLES:
+            return 1.0
+        price = self._asset(asset).get("price")
+        if not price:
+            raise BrokerError(f"No price for {asset} right now.")
+        return float(price)
+
+    def get_holdings(self) -> dict[str, float]:
+        p = self._req("GET", "/api/portfolio")
+        out: dict[str, float] = {}
+        for b in p.get("balances", []):
+            sym = (b.get("symbol") or "").upper()
+            qty = float(b.get("total") or 0)
+            if sym and qty > 0:
+                key = self._back.get(sym, sym)
+                out[key] = out.get(key, 0.0) + qty
+        return out
+
+    def quote(self, asset: str, side: str, usd: float) -> Quote:
+        a = self._asset(asset)
+        price = float(a.get("price") or 0)
+        if side == "buy":
+            amount = _fmt(usd)
+        else:
+            if not price:
+                raise BrokerError(f"No price for {asset} right now.")
+            amount = _fmt(usd / price)
+        order = self._req("POST", "/api/orders", {"asset_id": a["asset_id"], "side": side, "amount": amount})
+        q = order.get("quote") or {}
+        if side == "buy":
+            base_qty = float(q.get("qty_out") or 0)
+            price = usd / base_qty if base_qty else price
+        else:
+            base_qty = float(amount)
+        if not order.get("order_id") or base_qty <= 0:
+            raise BrokerError(f"Could not get a usable quote for {asset}.")
+        return Quote(asset=asset.upper(), side=side, usd=usd, base_qty=base_qty, price=price, ref=order["order_id"])
+
+    def execute(self, q: Quote) -> Fill:
+        if not q.ref:
+            raise BrokerError("That quote has no order to place. Ask me again.")
+        with self._lock:
+            res = self._req("POST", f"/api/orders/{q.ref}/execute")
+            order_id = res.get("order_id") or q.ref
+            status = res.get("status") or "pending"
+            detail: dict = {}
+            deadline = time.time() + 15
+            while status not in ("complete", "failed", "canceled") and time.time() < deadline:
+                time.sleep(1.0)
+                try:
+                    detail = self._req("GET", f"/api/orders/{order_id}")
+                    status = detail.get("status") or status
+                except BrokerError:
+                    pass
+            if status in ("complete",) and not detail:
+                detail = self._req("GET", f"/api/orders/{order_id}")
+        if status == "failed":
+            raise BrokerError("The order failed on True Markets. Nothing was bought.")
+        base_qty = float(detail.get("executed_qty") or q.base_qty)
+        price = float(detail.get("executed_vwap") or q.price)
+        return Fill(order_id=order_id, status=status, asset=q.asset, side=q.side, usd=q.usd, base_qty=base_qty, price=price)
+
+
 def make_broker(mode: str, quote_asset: str) -> Broker:
+    if mode == "tensho":
+        from .config import get_settings
+
+        st = get_settings()
+        return TenshoBroker(st.tensho_url, st.tensho_email, st.tensho_password, st.tensho_asset_map)
     if mode == "live":
         return TrueMarketsBroker(quote_asset=quote_asset)
     return MockBroker(quote_asset=quote_asset)

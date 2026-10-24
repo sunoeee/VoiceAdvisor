@@ -87,6 +87,28 @@ Open <http://localhost:5173>, press **Talk**, and allow the microphone.
 3. Run the read-only check: `python scripts/smoke_test_truemarkets.py` (places no orders).
 4. Set `BROKER_MODE=live` and restart the backend. The portfolio badge turns green.
 
+### 6. Live trades through the Tensho wallet (what we demo)
+
+Our $50 sits in a Gateway user's wallet that the Tensho example server
+(`true-markets/examples/apps/tensho-wallet`) created, so voice trades go through
+Tensho. Keep the Tensho **server** running (`npx tsx server/index.ts`, port 4747;
+its web UI isn't needed, and it uses port 5173 too, so close it). Then in `backend/.env`:
+
+```
+BROKER_MODE=tensho
+TENSHO_URL=http://localhost:4747
+TENSHO_EMAIL=<the email you signed up to Tensho with>
+TENSHO_PASSWORD=<that Tensho password>
+QUOTE_ASSET=PYUSD
+SEC_USER_AGENT=Talk-to-Trade demo <your email>
+```
+
+Restart the backend. "How's my portfolio?" should report about $49 in PYUSD.
+"Buy one dollar of SOL" prepares a quote (nothing is signed); only "Confirm"
+makes Tensho sign and submit it, pinned to the DeFi venue. Verified with a real
+$1 SOL buy funded from PYUSD. BTC (cbBTC on Base) and ETH are untested: use SOL
+for the demo.
+
 ## API
 
 | Method | Path | What it does |
@@ -110,8 +132,8 @@ Most responses include `say`: a sentence the agent can read aloud verbatim.
 
 ## Devil's advocate
 
-Before a trade, the user can tell Ticker why they like an asset and ask it to play
-devil's advocate. The open model asks up to three pointed questions, one at a time,
+Only when the user asks for a second opinion ("play devil's advocate", "what could go
+wrong?"), Ticker challenges their reason for liking an asset; it never offers this on its own. The open model asks up to three pointed questions, one at a time,
 using only excerpts in `backend/app/packets/` (SEC filings and press releases for
 BTC, ETH and SOL). The backend rejects any question that cites an excerpt not in the
 packet or sounds like advice, and falls back to pre-written questions if the model is

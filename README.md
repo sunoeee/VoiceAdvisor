@@ -66,7 +66,7 @@ nothing breaks while you set it up. Any OpenAI-compatible server works; change
 
 1. Create an agent at <https://elevenlabs.io/app/agents>.
 2. Paste the prompt from [`agent/system_prompt.md`](agent/system_prompt.md).
-3. Add the six client tools from [`agent/tools.md`](agent/tools.md), each with **Wait for response** on.
+3. Add the seven client tools from [`agent/tools.md`](agent/tools.md), each with **Wait for response** on.
 4. Copy the agent ID.
 
 ### 4. Frontend
@@ -87,64 +87,22 @@ Open <http://localhost:5173>, press **Talk**, and allow the microphone.
 3. Run the read-only check: `python scripts/smoke_test_truemarkets.py` (places no orders).
 4. Set `BROKER_MODE=live` and restart the backend. The portfolio badge turns green.
 
-### 6. Live trades through the Tensho wallet (what we demo)
-
-Our $50 sits in a Gateway user's wallet that the Tensho example server
-(`true-markets/examples/apps/tensho-wallet`) created, so voice trades go through
-Tensho. Keep the Tensho **server** running (`npx tsx server/index.ts`, port 4747;
-its web UI isn't needed, and it uses port 5173 too, so close it). Then in `backend/.env`:
-
-```
-BROKER_MODE=tensho
-TENSHO_URL=http://localhost:4747
-TENSHO_EMAIL=<the email you signed up to Tensho with>
-TENSHO_PASSWORD=<that Tensho password>
-QUOTE_ASSET=PYUSD
-SEC_USER_AGENT=Talk-to-Trade demo <your email>
-```
-
-Restart the backend. "How's my portfolio?" should report about $49 in PYUSD.
-"Buy one dollar of SOL" prepares a quote (nothing is signed); only "Confirm"
-makes Tensho sign and submit it, pinned to the DeFi venue. Verified with a real
-$1 SOL buy funded from PYUSD. BTC (cbBTC on Base) and ETH are untested: use SOL
-for the demo.
-
 ## API
 
 | Method | Path | What it does |
 | --- | --- | --- |
 | GET | `/api/health` | Mode, model and limits |
 | GET | `/api/portfolio` | Holdings valued in USD with weights |
-| GET | `/api/summary` | Portfolio plus a spoken briefing from the open model |
+| GET | `/api/brief` (alias `/api/summary`) | Good-morning brief: portfolio, 24h moves, spoken text from the open model |
+| POST | `/api/advise` | `{question, asset?, usd_amount?, percent_of_portfolio?}` → portfolio-impact analysis plus spoken guidance (pros, risks, a guiding question) |
 | GET | `/api/insights` | Educational observations from the open model |
 | GET | `/api/price/{asset}` | Current price |
 | POST | `/api/trades/prepare` | `{asset, side, usd}` → quote and `confirmation_id` (nothing executes) |
 | POST | `/api/trades/execute` | `{confirmation_id}` → places the order |
 | POST | `/api/trades/cancel` | `{confirmation_id?}` → drops the pending quote |
 | GET | `/api/trades` | Pending quote and trade history |
-| POST | `/api/devil/challenge` | `{asset, text, restart?}` → next devil's-advocate question (or the wrap-up after 3) |
-| GET | `/api/devil` | Current thesis, questions, answers and cited source quotes |
-| POST | `/api/devil/reset` | Clears the devil session |
-| GET | `/api/resources/{asset}` | Vetted sources plus recent SEC filings mentioning the asset (live from EDGAR full-text search) |
-| GET | `/api/resources` | The last resource set gathered (for the on-screen card) |
 
 Most responses include `say`: a sentence the agent can read aloud verbatim.
-
-## Devil's advocate
-
-Only when the user asks for a second opinion ("play devil's advocate", "what could go
-wrong?"), Ticker challenges their reason for liking an asset; it never offers this on its own. The open model asks up to three pointed questions, one at a time,
-using only excerpts in `backend/app/packets/` (SEC filings and press releases for
-BTC, ETH and SOL). The backend rejects any question that cites an excerpt not in the
-packet or sounds like advice, and falls back to pre-written questions if the model is
-down. The on-screen card shows each question with the exact quote and a link to the
-filing. The devil never places, blocks or recommends a trade. Packets are marked
-`draft_needs_human_review`: check each quote against the linked original before the demo.
-
-Ask "What should I read about SOL?" and the `find_resources` tool lists the devil's
-vetted sources plus recent SEC filings that mention the asset, pulled live from SEC
-EDGAR full-text search (set `SEC_USER_AGENT` in `backend/.env` with your email, as the
-SEC requires). Every link comes from a source, never from the model.
 
 ## Repo map and owners
 
@@ -154,7 +112,6 @@ SEC requires). Every link comes from a source, never from the model.
 | API and portfolio | `backend/app/main.py`, `backend/app/portfolio.py` | _name_ |
 | Open model and prompts | `backend/app/llm.py` | _name_ |
 | Voice agent | `agent/`, `frontend/src/AgentTools.tsx` | _name_ |
-| Devil's advocate + resources | `backend/app/devil.py`, `backend/app/resources.py`, `backend/app/packets/`, `DevilCard`/`ResourcesCard` in `frontend/src/components.tsx` | Jonathan |
 | UI | `frontend/src/App.tsx`, `frontend/src/components.tsx`, `frontend/src/styles.css` | _name_ |
 
 ## Team workflow
@@ -168,8 +125,8 @@ SEC requires). Every link comes from a source, never from the model.
 
 ## Demo script (3 minutes)
 
-1. "Hi Ticker, how's my portfolio?" (spoken briefing from the open model)
-2. "Any thoughts on my mix?" (insights)
+1. "Good morning, Ticker." (morning brief from the open model)
+2. "I'm thinking about putting 30% of my portfolio into NVIDIA. Any suggestions?" (guidance: pros, risks, a guiding question; the Before you invest card appears)
 3. "Buy five dollars of ETH." The quote is read back. "Confirm." The trade executes live.
 4. Show the trade log and the updated portfolio, then the architecture slide.
 

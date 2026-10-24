@@ -27,7 +27,6 @@ class Quote:
     usd: float  # notional in quote asset (USDC)
     base_qty: float  # estimated asset quantity
     price: float  # USD per 1 unit of asset
-    ref: str | None = None  # broker's own id for the prepared order, if any
 
 
 @dataclass
@@ -57,12 +56,17 @@ class Broker(ABC):
     @abstractmethod
     def execute(self, q: Quote) -> Fill: ...
 
+    def get_change_24h(self, asset: str) -> float | None:
+        """Percent price change over the last 24 hours, or None if unknown."""
+        return None
+
 
 # ---------------------------------------------------------------------------
 # Mock broker
 # ---------------------------------------------------------------------------
 
 _MOCK_BASE_PRICES = {"BTC": 67_000.0, "ETH": 2_600.0, "SOL": 150.0, "USDC": 1.0}
+_MOCK_CHANGE_24H = {"BTC": 2.1, "ETH": -1.4, "SOL": 3.6}
 
 
 class MockBroker(Broker):
@@ -89,6 +93,9 @@ class MockBroker(Broker):
     def get_holdings(self) -> dict[str, float]:
         with self._lock:
             return {k: v for k, v in self._holdings.items() if v > 0}
+
+    def get_change_24h(self, asset: str) -> float | None:
+        return _MOCK_CHANGE_24H.get(asset.upper())
 
     def quote(self, asset: str, side: str, usd: float) -> Quote:
         price = self.get_price(asset)
@@ -122,57 +129,32 @@ class MockBroker(Broker):
 # ---------------------------------------------------------------------------
 
 
-class TrueMarketsPrices:
-    """Read-only True Markets prices. compute_quote previews a price; it does not place an order."""
+class TrueMarketsBroker(Broker):
+    """Real trading via the `truemarkets` SDK (CeFi market orders against USDC).
+
+    Flow per the SDK: compute_quote (preview) -> create_order -> if the order
+    comes back `initialized` with payloads, sign them and execute_order ->
+    poll get_order_status.
+    """
 
     name = "truemarkets"
 
     def __init__(self, quote_asset: str = "USDC"):
+        # Imported lazily so mock mode works without the SDK configured.
+        from truemarkets import Client
+        from truemarkets._generated.gateway import models as m
+        from truemarkets._generated.gateway.types import Unset
+
         self.quote_asset = quote_asset
-        self.client = None
-        self.m = None
-        self._Unset = None
-        self._init_lock = threading.Lock()
+        self.m = m
+        self._Unset = Unset
+        try:
+            self.client = Client()
+        except Exception as e:
+            raise BrokerError(f"Could not start the True Markets client: {e}") from e
         self._lock = threading.Lock()
 
-    def _ensure(self) -> None:
-        if self.client is not None:
-            return
-        with self._init_lock:
-            if self.client is not None:
-                return
-            try:
-                from truemarkets import Client
-                from truemarkets._generated.gateway import models as m
-                from truemarkets._generated.gateway.types import Unset
-
-                _allow_access_token_without_refresh()
-            except Exception as e:
-                raise BrokerError(f"Could not start the True Markets client: {e}") from e
-            self.m = m
-            self._Unset = Unset
-            try:
-                client = Client()
-            except Exception as e:
-                raise BrokerError(f"Could not start the True Markets client: {e}") from e
-            if not client.key_file:
-                client.close()
-                raise BrokerError(
-                    "Set TM_KEY_FILE in backend/.env to the JSON file from truemarkets.co, Settings, API Keys. "
-                    "Live prices need that key. Trades stay on the mock portfolio and no order is sent."
-                )
-            self.client = client
-
-    def get_price(self, asset: str) -> float:
-        self._ensure()
-        asset = asset.upper()
-        if asset == self.quote_asset:
-            return 1.0
-        q = self._compute_quote(asset, "buy", 10, "quote")  # $10 preview, no order
-        price = self._v(q.price)
-        if not price:
-            raise BrokerError(f"No price returned for {asset}.")
-        return float(price)
+    # -- helpers -------------------------------------------------------------
 
     def _v(self, x):
         return None if isinstance(x, self._Unset) else x
@@ -209,19 +191,19 @@ class TrueMarketsPrices:
             ),
         )
 
+    # -- interface -----------------------------------------------------------
 
-class TrueMarketsBroker(TrueMarketsPrices, Broker):
-    """Real trading via the `truemarkets` SDK (CeFi market orders against USDC).
-
-    Flow per the SDK: compute_quote (preview) -> create_order -> if the order
-    comes back `initialized` with payloads, sign them and execute_order ->
-    poll get_order_status.
-    """
-
-    name = "truemarkets"
+    def get_price(self, asset: str) -> float:
+        asset = asset.upper()
+        if asset == self.quote_asset:
+            return 1.0
+        q = self._compute_quote(asset, "buy", 10, "quote")  # $10 preview
+        price = self._v(q.price)
+        if not price:
+            raise BrokerError(f"No price returned for {asset}.")
+        return float(price)
 
     def get_holdings(self) -> dict[str, float]:
-        self._ensure()
         resp = self._call("balances", self.client.gateway.list_balances)
         out: dict[str, float] = {}
         for item in self._v(resp.data) or []:
@@ -231,8 +213,24 @@ class TrueMarketsBroker(TrueMarketsPrices, Broker):
                 out[sym] = out.get(sym, 0) + total
         return out
 
+    def get_change_24h(self, asset: str) -> float | None:
+        """24h change from the public market-data candles. Best effort: None on any failure."""
+        try:
+            from truemarkets._generated.marketdata.api.prices import get_v1_defi_market_prices
+            from truemarkets._generated.marketdata.client import Client as MDClient
+
+            if not hasattr(self, "_md"):
+                self._md = MDClient(base_url=self.client.cfg.base_url, timeout=8)
+            resp = get_v1_defi_market_prices.sync(client=self._md, symbol=asset.upper())
+            for c in self._v(getattr(resp, "candles", None)) or []:
+                if self._v(c.interval) == "24h":
+                    o, cl = float(self._v(c.open_price) or 0), float(self._v(c.close_price) or 0)
+                    return round(100 * (cl / o - 1), 1) if o else None
+        except Exception:
+            return None
+        return None
+
     def quote(self, asset: str, side: str, usd: float) -> Quote:
-        self._ensure()
         if side == "buy":
             q = self._compute_quote(asset, "buy", usd, "quote")
             base_qty = float(self._v(q.qty) or 0)
@@ -247,7 +245,6 @@ class TrueMarketsBroker(TrueMarketsPrices, Broker):
         return Quote(asset=asset, side=side, usd=usd, base_qty=base_qty, price=price)
 
     def execute(self, q: Quote) -> Fill:
-        self._ensure()
         m = self.m
         with self._lock:
             if q.side == "buy":
@@ -312,187 +309,12 @@ class TrueMarketsBroker(TrueMarketsPrices, Broker):
         return status
 
 
-def _allow_access_token_without_refresh() -> None:
-    """Org API keys return an access token and no refresh token. SDK 0.3.0 requires both."""
-    from truemarkets._generated.authapi.models.access_tokens_response import AccessTokensResponse
-
-    current = AccessTokensResponse.from_dict
-    if getattr(current, "_tm_patched", False):
-        return
-    raw = current.__func__
-
-    def from_dict(cls, src_dict):
-        data = dict(src_dict)
-        data.setdefault("refresh_token", "")
-        return raw(cls, data)
-
-    from_dict._tm_patched = True
-    AccessTokensResponse.from_dict = classmethod(from_dict)
-
-
 def _fmt(x: float) -> str:
     """Decimal string without scientific notation, max 8 dp."""
     return f"{x:.8f}".rstrip("0").rstrip(".")
 
 
-# ---------------------------------------------------------------------------
-# Tensho broker: trade through the local Tensho wallet server
-# ---------------------------------------------------------------------------
-
-STABLES = {"USDC", "PYUSD", "USDG", "USDT"}
-
-
-class TenshoBroker(Broker):
-    """Trades through a running Tensho server (true-markets/examples tensho-wallet).
-
-    Tensho holds the True Markets org key and the wallet signer key, and places
-    every order for its signed-in customer as a Gateway user, pinned to the DeFi
-    venue. This lets the voice app trade the same wallet the team funded, with
-    no mouse: prepare = POST /api/orders (quote, nothing signed), execute =
-    POST /api/orders/{id}/execute (signs and submits), then poll the order.
-    Tensho re-quotes server-side if the reviewed quote is more than ~20s old.
-    """
-
-    name = "tensho"
-
-    def __init__(self, base_url: str, email: str, password: str, asset_map: str, http=None):
-        import httpx
-
-        if not (email and password):
-            raise BrokerError("Set TENSHO_EMAIL and TENSHO_PASSWORD in backend/.env to use Tensho.")
-        self.email, self.password = email, password
-        self.http = http or httpx.Client(base_url=base_url.rstrip("/"), timeout=20.0)
-        # "BTC=CBBTC@base,SOL=SOL@solana" -> {"BTC": ("CBBTC", "base"), ...}
-        self.map: dict[str, tuple[str, str]] = {}
-        for pair in asset_map.split(","):
-            if "=" in pair:
-                ours, theirs = pair.split("=", 1)
-                sym, _, chain = theirs.partition("@")
-                self.map[ours.strip().upper()] = (sym.strip().upper(), (chain or "solana").strip().lower())
-        self._back = {v[0]: k for k, v in self.map.items()}
-        self._lock = threading.Lock()
-        self._logged_in = False
-
-    # -- http ----------------------------------------------------------------
-
-    def _login(self) -> None:
-        r = self.http.post("/api/login", json={"email": self.email, "password": self.password})
-        if r.status_code != 200:
-            raise BrokerError("Tensho sign-in failed. Check TENSHO_EMAIL and TENSHO_PASSWORD.")
-        self._logged_in = True
-
-    def _req(self, method: str, path: str, body: dict | None = None) -> dict:
-        try:
-            if not self._logged_in:
-                self._login()
-            r = self.http.request(method, path, json=body)
-            if r.status_code == 401:
-                self._login()
-                r = self.http.request(method, path, json=body)
-        except BrokerError:
-            raise
-        except Exception as e:  # connection refused, timeout
-            raise BrokerError("I can't reach the Tensho wallet server. Is it running on port 4747?") from e
-        try:
-            data = r.json()
-        except ValueError:
-            data = {}
-        if r.status_code >= 400:
-            msg = data.get("message") or f"error {r.status_code}"
-            if "insufficient" in msg.lower():
-                msg = "There isn't enough balance in the wallet for that."
-            raise BrokerError(msg)
-        return data
-
-    def _asset(self, asset: str) -> dict:
-        asset = asset.upper()
-        if asset not in self.map:
-            raise BrokerError(f"{asset} isn't set up for trading in Tensho.")
-        sym, chain = self.map[asset]
-        for a in self._req("GET", "/api/assets"):
-            if a.get("symbol", "").upper() == sym and (a.get("chain") or "solana") == chain and not a.get("cash"):
-                return a
-        raise BrokerError(f"Tensho doesn't offer {sym} on {chain}. Add it to Tensho's TM_TOKENS.")
-
-    # -- interface -----------------------------------------------------------
-
-    def get_price(self, asset: str) -> float:
-        if asset.upper() in STABLES:
-            return 1.0
-        price = self._asset(asset).get("price")
-        if not price:
-            raise BrokerError(f"No price for {asset} right now.")
-        return float(price)
-
-    def get_holdings(self) -> dict[str, float]:
-        p = self._req("GET", "/api/portfolio")
-        out: dict[str, float] = {}
-        for b in p.get("balances", []):
-            sym = (b.get("symbol") or "").upper()
-            qty = float(b.get("total") or 0)
-            if sym and qty > 0:
-                key = self._back.get(sym, sym)
-                out[key] = out.get(key, 0.0) + qty
-        return out
-
-    def quote(self, asset: str, side: str, usd: float) -> Quote:
-        a = self._asset(asset)
-        price = float(a.get("price") or 0)
-        if side == "buy":
-            amount = _fmt(usd)
-        else:
-            if not price:
-                raise BrokerError(f"No price for {asset} right now.")
-            amount = _fmt(usd / price)
-        order = self._req("POST", "/api/orders", {"asset_id": a["asset_id"], "side": side, "amount": amount})
-        q = order.get("quote") or {}
-        if side == "buy":
-            base_qty = float(q.get("qty_out") or 0)
-            price = usd / base_qty if base_qty else price
-        else:
-            base_qty = float(amount)
-        if not order.get("order_id") or base_qty <= 0:
-            raise BrokerError(f"Could not get a usable quote for {asset}.")
-        return Quote(asset=asset.upper(), side=side, usd=usd, base_qty=base_qty, price=price, ref=order["order_id"])
-
-    def execute(self, q: Quote) -> Fill:
-        if not q.ref:
-            raise BrokerError("That quote has no order to place. Ask me again.")
-        with self._lock:
-            res = self._req("POST", f"/api/orders/{q.ref}/execute")
-            order_id = res.get("order_id") or q.ref
-            status = res.get("status") or "pending"
-            detail: dict = {}
-            deadline = time.time() + 15
-            while status not in ("complete", "failed", "canceled") and time.time() < deadline:
-                time.sleep(1.0)
-                try:
-                    detail = self._req("GET", f"/api/orders/{order_id}")
-                    status = detail.get("status") or status
-                except BrokerError:
-                    pass
-            if status in ("complete",) and not detail:
-                detail = self._req("GET", f"/api/orders/{order_id}")
-        if status == "failed":
-            raise BrokerError("The order failed on True Markets. Nothing was bought.")
-        base_qty = float(detail.get("executed_qty") or q.base_qty)
-        price = float(detail.get("executed_vwap") or q.price)
-        return Fill(order_id=order_id, status=status, asset=q.asset, side=q.side, usd=q.usd, base_qty=base_qty, price=price)
-
-
 def make_broker(mode: str, quote_asset: str) -> Broker:
-    if mode == "tensho":
-        from .config import get_settings
-
-        st = get_settings()
-        return TenshoBroker(st.tensho_url, st.tensho_email, st.tensho_password, st.tensho_asset_map)
     if mode == "live":
         return TrueMarketsBroker(quote_asset=quote_asset)
-    return MockBroker(quote_asset=quote_asset)
-
-
-def make_market(mode: str, quote_asset: str):
-    """Price source. Live mode only calls compute_quote; it has no execute method."""
-    if mode == "live":
-        return TrueMarketsPrices(quote_asset=quote_asset)
     return MockBroker(quote_asset=quote_asset)

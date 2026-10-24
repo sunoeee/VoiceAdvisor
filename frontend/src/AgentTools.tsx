@@ -1,5 +1,5 @@
 import { useConversationClientTool } from "@elevenlabs/react";
-import { api } from "./api";
+import { api, type Guidance } from "./api";
 
 /**
  * Client tools the ElevenLabs agent can call.
@@ -15,8 +15,19 @@ type Params = Record<string, unknown>;
 
 const json = (x: unknown) => JSON.stringify(x);
 const str = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
+const num = (v: unknown) => {
+  const n = Number(v);
+  return v == null || v === "" || Number.isNaN(n) ? undefined : n;
+};
 
-export function AgentTools({ onChange }: { onChange: () => void }) {
+export function AgentTools({
+  onChange,
+  onGuidance,
+}: {
+  onChange: () => void;
+  onGuidance: (g: Guidance & { say?: string }) => void;
+}) {
+  // Good-morning brief (portfolio + 24h moves, written by the open model)
   useConversationClientTool("get_portfolio_summary", async () => {
     const r = await api.summary();
     onChange();
@@ -25,6 +36,18 @@ export function AgentTools({ onChange }: { onChange: () => void }) {
 
   useConversationClientTool("get_portfolio_insights", async () => {
     const r = await api.insights();
+    return json({ say: r.say, error: r.error });
+  });
+
+  // "I'm thinking of putting 20% into NVIDIA, any suggestions?"
+  useConversationClientTool("get_investment_guidance", async (p: Params) => {
+    const r = await api.advise(
+      str(p.question) || "Should I make this investment?",
+      str(p.asset) || undefined,
+      num(p.usd_amount),
+      num(p.percent_of_portfolio),
+    );
+    if (!r.error) onGuidance(r);
     return json({ say: r.say, error: r.error });
   });
 
@@ -48,18 +71,6 @@ export function AgentTools({ onChange }: { onChange: () => void }) {
     const r = await api.cancel(str(p.confirmation_id) || undefined);
     onChange();
     return json(r);
-  });
-
-  useConversationClientTool("challenge_thesis", async (p: Params) => {
-    const r = await api.challenge(str(p.asset), str(p.user_text), p.restart === true || p.restart === "true");
-    onChange();
-    return json(r);
-  });
-
-  useConversationClientTool("find_resources", async (p: Params) => {
-    const r = await api.resources(str(p.asset));
-    onChange();
-    return json({ say: r.say, error: r.error });
   });
 
   return null;

@@ -40,7 +40,7 @@ INSIGHTS_PROMPT = (
 class LLM:
     def __init__(self, s: Settings):
         self.s = s
-        self.client = OpenAI(base_url=s.llm_base_url, api_key=s.llm_api_key, timeout=s.llm_timeout_seconds)
+        self.client = OpenAI(base_url=s.llm_base_url, api_key=s.llm_api_key, timeout=s.llm_timeout_seconds, max_retries=0)
 
     def _ask(self, system: str, data: dict) -> str | None:
         try:

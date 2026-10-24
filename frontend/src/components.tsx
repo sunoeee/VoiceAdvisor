@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { PendingTrade, Portfolio, TradeRecord } from "./api";
+import type { Markets, PendingTrade, Portfolio, TradeRecord } from "./api";
 
 const usd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 const qty = (n: number) => (n >= 1 ? n.toFixed(4) : n.toPrecision(4));
@@ -30,6 +30,38 @@ export function PortfolioCard({ p }: { p: Portfolio | null }) {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+export function MarketCard({ markets }: { markets: (Markets & { error?: string; say?: string }) | null }) {
+  if (!markets) return <section className="card">Loading market prices…</section>;
+  const live = markets.source === "truemarkets" && !markets.error;
+  const badge = markets.error ? "Prices unavailable" : live ? "Live · True Markets" : "Mock prices";
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Market prices</h2>
+        <span className={`badge ${live ? "live" : "warn"}`}>{badge}</span>
+      </div>
+      {markets.error ? (
+        <div className="muted">{markets.say ?? markets.error}</div>
+      ) : (
+        <ul className="markets">
+          {markets.prices.map((p) => (
+            <li key={p.asset}>
+              <span className="sym">{p.asset}</span>
+              <span className="mono">{usd(p.price_usd)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {markets.unavailable && markets.unavailable.length > 0 && (
+        <div className="muted small">
+          {markets.unavailable.map((item) => item.asset).join(", ")} is not available on True Markets.
+        </div>
+      )}
+      <div className="muted small">Prices only. Confirming a trade still uses the mock portfolio.</div>
     </section>
   );
 }

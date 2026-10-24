@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from .broker import BrokerError, make_broker
+from .broker import BrokerError, make_broker, make_market
 from .config import get_settings
 from .llm import LLM
 from .portfolio import snapshot
@@ -30,6 +30,7 @@ app.add_middleware(
 )
 
 broker = make_broker(settings.broker_mode, settings.quote_asset)
+market = make_market(settings.market_mode, settings.quote_asset)
 desk = TradeDesk(broker, settings)
 llm = LLM(settings)
 
@@ -66,6 +67,7 @@ def health():
     return {
         "ok": True,
         "broker": broker.name,
+        "market": market.name,
         "llm_model": settings.llm_model,
         "max_trade_usd": settings.max_trade_usd,
         "allowed_assets": settings.allowed_asset_list,
@@ -77,11 +79,37 @@ def get_portfolio():
     return snapshot(broker, settings.quote_asset)
 
 
+def _price_payload(asset: str, price: float) -> dict:
+    return {
+        "asset": asset,
+        "price_usd": price,
+        "source": market.name,
+        "say": f"{asset} is at ${price:,.2f}.",
+    }
+
+
+@app.get("/api/markets")
+def get_markets():
+    prices = []
+    unavailable = []
+    for asset in settings.allowed_asset_list:
+        try:
+            prices.append(_price_payload(asset, market.get_price(asset)))
+        except BrokerError as e:
+            unavailable.append({"asset": asset, "error": str(e)})
+    if not prices:
+        raise BrokerError(unavailable[0]["error"] if unavailable else "No market prices available.")
+    spoken = ", ".join(p["say"].removesuffix(".") for p in prices)
+    if unavailable:
+        skipped = ", ".join(item["asset"] for item in unavailable)
+        spoken = f"{spoken}. {skipped} is not available"
+    return {"source": market.name, "prices": prices, "unavailable": unavailable, "say": f"{spoken}."}
+
+
 @app.get("/api/price/{asset}")
 def get_price(asset: str):
     asset = asset.upper()
-    price = broker.get_price(asset)
-    return {"asset": asset, "price_usd": price, "say": f"{asset} is at ${price:,.2f}."}
+    return _price_payload(asset, market.get_price(asset))
 
 
 @app.get("/api/summary")

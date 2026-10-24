@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useConversation } from "@elevenlabs/react";
-import { api, type PendingTrade, type Portfolio, type TradeRecord } from "./api";
+import { api, type Markets, type PendingTrade, type Portfolio, type TradeRecord } from "./api";
 import { AgentTools } from "./AgentTools";
-import { PendingCard, PortfolioCard, TradeLog, Transcript, type Line } from "./components";
+import { MarketCard, PendingCard, PortfolioCard, TradeLog, Transcript, type Line } from "./components";
 
 const AGENT_ID = import.meta.env.VITE_ELEVENLABS_AGENT_ID as string | undefined;
 
 export default function App() {
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [markets, setMarkets] = useState<Markets | null>(null);
   const [pending, setPending] = useState<PendingTrade | null>(null);
   const [history, setHistory] = useState<TradeRecord[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
@@ -16,8 +17,9 @@ export default function App() {
   const add = (role: Line["role"], text: string) => setLines((l) => [...l, { role, text }]);
 
   const refresh = useCallback(async () => {
-    const [p, t] = await Promise.all([api.portfolio(), api.trades()]);
+    const [p, t, m] = await Promise.all([api.portfolio(), api.trades(), api.markets()]);
     if (!p.error) setPortfolio(p);
+    setMarkets(m);
     if (!t.error) {
       setPending(t.pending[0] ?? null);
       setHistory(t.history);
@@ -85,6 +87,7 @@ export default function App() {
 
       <main>
         <div className="col">
+          <MarketCard markets={markets} />
           <PortfolioCard p={portfolio} />
           <PendingCard trade={pending} onConfirm={confirmClick} onCancel={cancelClick} />
         </div>

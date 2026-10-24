@@ -40,6 +40,8 @@ footer { margin-top: 28px; text-align: center; }
 .badge.live { color: var(--buy); }
 
 .total { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; }
+.markets { list-style: none; padding: 0; margin: 14px 0 10px; display: flex; flex-direction: column; gap: 10px; }
+.markets li { display: flex; justify-content: space-between; align-items: baseline; font-size: 22px; }
 .positions { list-style: none; padding: 0; margin: 18px 0 0; display: flex; flex-direction: column; gap: 12px; }
 .pos-row { display: grid; grid-template-columns: 70px 1fr auto; gap: 8px; align-items: baseline; }
 .sym { font-weight: 600; }

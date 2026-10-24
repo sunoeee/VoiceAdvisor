@@ -60,8 +60,17 @@ async function call<T>(path: string, init?: RequestInit): Promise<T & Spoken> {
 const post = <T,>(path: string, data: unknown) =>
   call<T>(path, { method: "POST", body: JSON.stringify(data) });
 
+export type MarketPrice = { asset: string; price_usd: number; source: string; say?: string };
+
+export type Markets = {
+  source: string;
+  prices: MarketPrice[];
+  unavailable?: { asset: string; error: string }[];
+};
+
 export const api = {
-  health: () => call<{ ok: boolean; broker: string; max_trade_usd: number; allowed_assets: string[] }>("/health"),
+  health: () => call<{ ok: boolean; broker: string; market: string; max_trade_usd: number; allowed_assets: string[] }>("/health"),
+  markets: () => call<Markets>("/markets"),
   portfolio: () => call<Portfolio>("/portfolio"),
   summary: () => call<{ portfolio: Portfolio; source: string }>("/summary"),
   insights: () => call<{ source: string }>("/insights"),

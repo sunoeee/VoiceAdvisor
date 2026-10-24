@@ -11,14 +11,13 @@ class Settings(BaseSettings):
     # live = True Markets quotes and prices only. Orders stay on broker_mode.
     market_mode: Literal["mock", "live"] = "live"
     # mock = fake balances, no orders sent. live = real True Markets orders.
-    broker_mode: Literal["mock", "live"] = "mock"
+    broker_mode: Literal["mock", "live", "tensho"] = "mock"
 
-    
     # Tensho wallet server (BROKER_MODE=tensho): trades the Tensho customer's Gateway wallet
-    #tensho_url: str = "http://localhost:4747"
-    #tensho_email: str = ""
-    #tensho_password: str = ""
-    #tensho_asset_map: str = "SOL=SOL@solana,BTC=CBBTC@base,ETH=ETH@base"
+    tensho_url: str = "http://localhost:4747"
+    tensho_email: str = ""
+    tensho_password: str = ""
+    tensho_asset_map: str = "SOL=SOL@solana,BTC=CBBTC@base,ETH=ETH@base"
 
     # Guardrails
     max_trade_usd: float = 10.0
@@ -35,6 +34,11 @@ class Settings(BaseSettings):
 
     # SEC EDGAR asks for a User-Agent with a contact email on automated requests.
     sec_user_agent: str = "Talk-to-Trade hackathon demo (set SEC_USER_AGENT to include your email)"
+
+    # ElevenLabs text-to-speech for reading the morning brief aloud (backend only; never in the frontend)
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_id: str = "JBFqnCBsd6RMkjVDRZzb"
+    elevenlabs_model_id: str = "eleven_multilingual_v2"
 
     cors_origins: str = "http://localhost:5173"
 

@@ -29,4 +29,6 @@ def snapshot(broker: Broker, quote_asset: str = "USDC") -> dict:
         "cash_usd": round(holdings.get(quote_asset, 0.0), 2),
         "positions": positions,
         "broker": broker.name,
+        # "truemarkets" when values use live True Markets prices, else "mock"
+        "price_source": getattr(broker, "last_price_source", broker.name),
     }

@@ -5,6 +5,7 @@ Uses the mock broker and a dead LLM URL, so it needs no keys or network.
 import os
 
 os.environ["BROKER_MODE"] = "mock"
+os.environ["MARKET_MODE"] = "mock"
 os.environ["LLM_BASE_URL"] = "http://127.0.0.1:9/v1"  # nothing listens here
 os.environ["LLM_TIMEOUT_SECONDS"] = "1"
 
@@ -19,6 +20,21 @@ def test_health():
     r = client.get("/api/health")
     assert r.status_code == 200
     assert r.json()["broker"] == "mock"
+    assert r.json()["market"] == "mock"
+
+
+def test_market_prices_do_not_trade():
+    before = len(client.get("/api/trades").json()["history"])
+    markets = client.get("/api/markets")
+    assert markets.status_code == 200
+    body = markets.json()
+    assert body["source"] == "mock"
+    assert {p["asset"] for p in body["prices"]} == {"BTC", "ETH", "SOL"}
+    one = client.get("/api/price/ETH")
+    assert one.status_code == 200
+    assert one.json()["source"] == "mock"
+    assert one.json()["price_usd"] > 0
+    assert len(client.get("/api/trades").json()["history"]) == before
 
 
 def test_portfolio_and_summary_fallback():

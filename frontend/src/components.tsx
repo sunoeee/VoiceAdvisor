@@ -1,8 +1,45 @@
 import { useEffect, useState } from "react";
-import type { Guidance, PendingTrade, Portfolio, TradeRecord } from "./api";
+import type { DevilState, Guidance, Markets, PendingTrade, Portfolio, ResourceItem, ResourceSet, TradeRecord } from "./api";
 
 const usd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 const qty = (n: number) => (n >= 1 ? n.toFixed(4) : n.toPrecision(4));
+
+export function BriefCard({
+  text,
+  source,
+  audioUrl,
+  status,
+  onGet,
+}: {
+  text: string | null;
+  source: string | null;
+  audioUrl: string | null;
+  status: string | null;
+  onGet: () => void;
+}) {
+  const busy = status === "writing" || status === "voicing";
+  return (
+    <section className="card brief">
+      <div className="card-head">
+        <h2>Morning brief</h2>
+        <button onClick={onGet} disabled={busy}>
+          {busy ? "Working…" : text ? "Refresh" : "Get brief"}
+        </button>
+      </div>
+      {!text && !busy && (
+        <p className="muted small">Your portfolio and today's moves from True Markets, written by Qwen and read aloud by ElevenLabs.</p>
+      )}
+      {status === "writing" && <p className="muted">Writing your brief…</p>}
+      {text && <p className="brief-text">{text}</p>}
+      {status === "voicing" && <p className="muted small">Getting the voice ready…</p>}
+      {audioUrl && <audio src={audioUrl} autoPlay controls className="brief-audio" />}
+      {status && status.startsWith("error:") && <p className="muted small">{status.slice(6)}</p>}
+      {text && source && (
+        <div className="muted small">{source === "llm" ? "Written by Qwen (open-source)" : "Template (model unavailable)"}</div>
+      )}
+    </section>
+  );
+}
 
 export function PortfolioCard({ p }: { p: Portfolio | null }) {
   if (!p) return <section className="card">Loading portfolio…</section>;
@@ -11,7 +48,13 @@ export function PortfolioCard({ p }: { p: Portfolio | null }) {
       <div className="card-head">
         <h2>Portfolio</h2>
         <span className={`badge ${p.broker === "mock" ? "warn" : "live"}`}>
-          {p.broker === "mock" ? "Mock data" : "Live · True Markets"}
+          {p.broker === "mock"
+            ? p.price_source === "truemarkets"
+              ? "Practice · live True Markets prices"
+              : "Practice · demo prices"
+            : p.broker === "tensho"
+              ? "Live · True Markets wallet"
+              : "Live · True Markets"}
         </span>
       </div>
       <div className="total">{usd(p.total_usd)}</div>
@@ -30,6 +73,38 @@ export function PortfolioCard({ p }: { p: Portfolio | null }) {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+export function MarketCard({ markets, liveTrading = false }: { markets: (Markets & { error?: string; say?: string }) | null; liveTrading?: boolean }) {
+  if (!markets) return <section className="card">Loading market prices…</section>;
+  const live = markets.source === "truemarkets" && !markets.error;
+  const badge = markets.error ? "Prices unavailable" : live ? "Live · True Markets" : "Mock prices";
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Market prices</h2>
+        <span className={`badge ${live ? "live" : "warn"}`}>{badge}</span>
+      </div>
+      {markets.error ? (
+        <div className="muted">{markets.say ?? markets.error}</div>
+      ) : (
+        <ul className="markets">
+          {markets.prices.map((p) => (
+            <li key={p.asset}>
+              <span className="sym">{p.asset}</span>
+              <span className="mono">{usd(p.price_usd)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {markets.unavailable && markets.unavailable.length > 0 && (
+        <div className="muted small">
+          {markets.unavailable.map((item) => item.asset).join(", ")} is not available on True Markets.
+        </div>
+      )}
+      {!liveTrading && <div className="muted small">Prices only. Confirming a trade still uses the mock portfolio.</div>}
     </section>
   );
 }
@@ -79,7 +154,7 @@ export function TradeLog({ history }: { history: TradeRecord[] }) {
     <section className="card">
       <h2>Trades</h2>
       {history.length === 0 ? (
-        <div className="muted">No trades yet. Try “buy five dollars of ETH”.</div>
+        <div className="muted">No trades yet. Try “buy one dollar of SOL”.</div>
       ) : (
         <ul className="log">
           {history.map((t) => (
@@ -162,6 +237,99 @@ export function Transcript({ lines }: { lines: Line[] }) {
             </li>
           ))}
         </ul>
+      )}
+    </section>
+  );
+}
+
+export function DevilCard({ d, onReset }: { d: DevilState | null; onReset: () => void }) {
+  if (!d?.active) {
+    return (
+      <section className="card devil">
+        <div className="card-head">
+          <h2>Devil's advocate</h2>
+        </div>
+        <p className="muted small">
+          Tell Ticker why you like BTC, ETH or SOL and ask it to play devil's advocate. It asks up to three pointed questions,
+          each tied to an SEC filing or press release. It never tells you to buy or sell.
+        </p>
+      </section>
+    );
+  }
+  return (
+    <section className="card devil">
+      <div className="card-head">
+        <h2>Devil's advocate · {d.asset}</h2>
+        <button className="link small" onClick={onReset}>
+          Clear
+        </button>
+      </div>
+      <p className="thesis">
+        <span className="muted small">Your thesis: </span>
+        {d.thesis}
+      </p>
+      <ol className="devil-turns">
+        {d.turns?.map((t, i) => (
+          <li key={i}>
+            <div className="devil-q">
+              <span className="side sell">Q{i + 1}</span> {t.question}{" "}
+              <span className="badge muted">{t.source === "llm" ? "live AI" : "pre-written"}</span>
+            </div>
+            {t.citations.map((c) => (
+              <blockquote key={c.source_id + c.excerpt_id} className="small">
+                “{c.quote}” <span className="muted">— </span>
+                <a href={c.url} target="_blank" rel="noreferrer">
+                  {c.title}, {c.date}
+                </a>
+              </blockquote>
+            ))}
+            <div className="small">
+              <span className="muted">You: </span>
+              {t.answer ?? <em className="muted">waiting for your answer…</em>}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function ResourceList({ items }: { items: ResourceItem[] }) {
+  return (
+    <ul className="resources">
+      {items.map((r) => (
+        <li key={r.url}>
+          <a href={r.url} target="_blank" rel="noreferrer">
+            {r.title}
+          </a>
+          <div className="muted small">
+            {r.publisher} · {r.date}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function ResourcesCard({ r }: { r: ResourceSet | null }) {
+  if (!r?.asset) return null;
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Resources · {r.asset}</h2>
+        <span className="muted small">documents to read, not recommendations</span>
+      </div>
+      <div className="small muted">Vetted sources (what the devil cites)</div>
+      <ResourceList items={r.vetted ?? []} />
+      <div className="small muted" style={{ marginTop: 12 }}>
+        Recent SEC filings mentioning {r.asset} (live from EDGAR)
+      </div>
+      {r.edgar_ok === false ? (
+        <p className="small muted">Couldn't reach SEC EDGAR just now.</p>
+      ) : r.recent_filings?.length ? (
+        <ResourceList items={r.recent_filings} />
+      ) : (
+        <p className="small muted">None in the last four months.</p>
       )}
     </section>
   );

@@ -7,16 +7,20 @@ from __future__ import annotations
 
 import logging
 
+import httpx
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from . import advice
-from .broker import BrokerError, make_broker
+from .broker import BrokerError, make_broker, make_market
 from .config import get_settings
+from .devil import Devil
 from .llm import LLM
 from .portfolio import snapshot
+from .resources import Resources
 from .trades import TradeDesk, TradeError
 
 logging.basicConfig(level=logging.INFO)
@@ -30,9 +34,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-broker = make_broker(settings.broker_mode, settings.quote_asset)
+# Prices come from True Markets when MARKET_MODE=live. The practice (mock) broker
+# uses those live prices too, so the portfolio, brief, guidance and quotes are real.
+market = make_market(settings.market_mode, settings.quote_asset)
+broker = make_broker(settings.broker_mode, settings.quote_asset, market)
 desk = TradeDesk(broker, settings)
 llm = LLM(settings)
+devil = Devil(settings, llm.client)
+resources = Resources(settings)
 
 
 @app.exception_handler(TradeError)
@@ -66,6 +75,12 @@ class ConfirmBody(BaseModel):
     confirmation_id: str | None = None
 
 
+class ChallengeBody(BaseModel):
+    asset: str
+    text: str = ""
+    restart: bool = False
+
+
 # --- routes ---------------------------------------------------------------
 
 
@@ -74,7 +89,9 @@ def health():
     return {
         "ok": True,
         "broker": broker.name,
+        "market": market.name,
         "llm_model": settings.llm_model,
+        "tts_ready": bool(settings.elevenlabs_api_key),
         "max_trade_usd": settings.max_trade_usd,
         "allowed_assets": settings.allowed_asset_list,
     }
@@ -85,15 +102,51 @@ def get_portfolio():
     return snapshot(broker, settings.quote_asset)
 
 
+def _price_payload(asset: str, price: float) -> dict:
+    return {
+        "asset": asset,
+        "price_usd": price,
+        "source": market.name,
+        "say": f"{asset} is at ${price:,.2f}.",
+    }
+
+
+@app.get("/api/markets")
+def get_markets():
+    prices = []
+    unavailable = []
+    for asset in settings.allowed_asset_list:
+        try:
+            prices.append(_price_payload(asset, market.get_price(asset)))
+        except BrokerError as e:
+            unavailable.append({"asset": asset, "error": str(e)})
+    if not prices:
+        raise BrokerError(unavailable[0]["error"] if unavailable else "No market prices available.")
+    spoken = ", ".join(p["say"].removesuffix(".") for p in prices)
+    if unavailable:
+        skipped = ", ".join(item["asset"] for item in unavailable)
+        spoken = f"{spoken}. {skipped} is not available"
+    return {"source": market.name, "prices": prices, "unavailable": unavailable, "say": f"{spoken}."}
+
+
 @app.get("/api/price/{asset}")
 def get_price(asset: str):
     asset = asset.upper()
-    price = broker.get_price(asset)
-    return {"asset": asset, "price_usd": price, "say": f"{asset} is at ${price:,.2f}."}
+    return _price_payload(asset, market.get_price(asset))
+
+
+def _change_24h(symbol: str) -> float | None:
+    for src in (broker, market):
+        fn = getattr(src, "get_change_24h", None)
+        if fn:
+            v = fn(symbol)
+            if v is not None:
+                return v
+    return None
 
 
 def _moves(snap: dict) -> dict[str, float | None]:
-    return {p["symbol"]: broker.get_change_24h(p["symbol"]) for p in snap["positions"] if p["symbol"] != settings.quote_asset}
+    return {p["symbol"]: _change_24h(p["symbol"]) for p in snap["positions"] if p["symbol"] != settings.quote_asset}
 
 
 @app.get("/api/brief")
@@ -147,3 +200,63 @@ def list_trades():
 def pending_trades():
     return {"pending": desk.pending()}
 
+
+
+# --- devil's advocate -----------------------------------------------------
+
+
+@app.post("/api/devil/challenge")
+def devil_challenge(body: ChallengeBody):
+    """Send the user's thesis (first call) or their answer (later calls); get the next question."""
+    return devil.challenge(body.asset, body.text[:1200], body.restart)
+
+
+@app.get("/api/devil")
+def devil_state():
+    return devil.state()
+
+
+@app.post("/api/devil/reset")
+def devil_reset():
+    devil.reset()
+    return {"ok": True}
+
+
+# --- resources ------------------------------------------------------------
+
+
+@app.get("/api/resources/{asset}")
+def gather_resources(asset: str):
+    """Vetted sources plus recent SEC filings that mention the asset (live from EDGAR)."""
+    return resources.gather(asset)
+
+
+@app.get("/api/resources")
+def last_resources():
+    return resources.last or {"asset": None}
+
+
+# --- ElevenLabs read-aloud --------------------------------------------------
+
+
+class TTSBody(BaseModel):
+    text: str
+
+
+@app.post("/api/tts")
+def tts(body: TTSBody):
+    """Reads text (e.g. the Ollama-written morning brief) aloud with ElevenLabs. Returns an MP3."""
+    if not settings.elevenlabs_api_key:
+        return JSONResponse(status_code=500, content={"error": "Set ELEVENLABS_API_KEY in backend/.env"})
+    try:
+        r = httpx.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{settings.elevenlabs_voice_id}",
+            headers={"xi-api-key": settings.elevenlabs_api_key, "Accept": "audio/mpeg"},
+            json={"text": body.text[:1500], "model_id": settings.elevenlabs_model_id},
+            timeout=30,
+        )
+    except httpx.HTTPError as e:
+        return JSONResponse(status_code=502, content={"error": f"Couldn't reach ElevenLabs: {e}"})
+    if r.status_code != 200:
+        return JSONResponse(status_code=502, content={"error": r.text[:300]})
+    return Response(content=r.content, media_type="audio/mpeg")

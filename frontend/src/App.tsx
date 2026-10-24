@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useConversation } from "@elevenlabs/react";
-import { api, type Markets, type PendingTrade, type Portfolio, type TradeRecord } from "./api";
+import { api, type DevilState, type Markets, type PendingTrade, type Portfolio, type ResourceSet, type TradeRecord } from "./api";
 import { AgentTools } from "./AgentTools";
-import { MarketCard, PendingCard, PortfolioCard, TradeLog, Transcript, type Line } from "./components";
+import { DevilCard, MarketCard, PendingCard, PortfolioCard, ResourcesCard, TradeLog, Transcript, type Line } from "./components";
 
 const AGENT_ID = import.meta.env.VITE_ELEVENLABS_AGENT_ID as string | undefined;
 
@@ -13,11 +13,21 @@ export default function App() {
   const [history, setHistory] = useState<TradeRecord[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
   const [typed, setTyped] = useState("");
+  const [devil, setDevil] = useState<DevilState | null>(null);
+  const [resources, setResources] = useState<ResourceSet | null>(null);
 
   const add = (role: Line["role"], text: string) => setLines((l) => [...l, { role, text }]);
 
   const refresh = useCallback(async () => {
-    const [p, t, m] = await Promise.all([api.portfolio(), api.trades(), api.markets()]);
+    const [p, t, m, d, res] = await Promise.all([
+      api.portfolio(),
+      api.trades(),
+      api.markets(),
+      api.devil(),
+      api.lastResources(),
+    ]);
+    if (!d.error) setDevil(d);
+    if (!res.error) setResources(res);
     if (!p.error) setPortfolio(p);
     setMarkets(m);
     if (!t.error) {
@@ -90,6 +100,8 @@ export default function App() {
           <MarketCard markets={markets} />
           <PortfolioCard p={portfolio} />
           <PendingCard trade={pending} onConfirm={confirmClick} onCancel={cancelClick} />
+          <DevilCard d={devil} onReset={() => api.devilReset().then(refresh)} />
+          <ResourcesCard r={resources} />
         </div>
         <div className="col">
           <Transcript lines={lines} />

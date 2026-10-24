@@ -1,0 +1,120 @@
+{
+  "asset": "BTC",
+  "name": "Bitcoin",
+  "as_of": "2026-10-24",
+  "release_status": "draft_needs_human_review",
+  "source_items": [
+    {
+      "id": "S1",
+      "type": "sec_edgar_filing",
+      "spoken": "BlackRock's iShares Bitcoin Trust prospectus",
+      "title": "iShares Bitcoin Trust ETF — Prospectus (Form 424B3)",
+      "publisher": "iShares Bitcoin Trust ETF (SEC EDGAR, CIK 0001980994)",
+      "url": "https://www.sec.gov/Archives/edgar/data/1980994/000143774925024228/bit20250731_424b3.htm",
+      "date": "2025-07-31",
+      "excerpts": [
+        {
+          "id": "E1",
+          "text": "The trading prices of many digital assets, including bitcoin, have experienced extreme volatility in recent periods"
+        },
+        {
+          "id": "E2",
+          "text": "Changes in the governance of a digital asset network may not receive sufficient support from users and miners"
+        },
+        {
+          "id": "E3",
+          "text": "A temporary or permanent \"fork\" could adversely affect the value of the Shares"
+        },
+        {
+          "id": "E4",
+          "text": "Digital asset markets in the United States exist in a state of regulatory uncertainty"
+        }
+      ]
+    }
+  ],
+  "challenges": [
+    {
+      "id": "btc-c-volatility",
+      "triggers": [
+        "price",
+        "up",
+        "store of value",
+        "gold",
+        "inflation",
+        "hedge",
+        "safe",
+        "moon",
+        "grow"
+      ],
+      "question": "BlackRock's own bitcoin fund prospectus says bitcoin's trading price has seen extreme volatility. If your reason is that bitcoin holds value, how does that fit with sharp drops?",
+      "citations": [
+        {
+          "source_id": "S1",
+          "excerpt_id": "E1"
+        }
+      ]
+    },
+    {
+      "id": "btc-c-regulation",
+      "triggers": [
+        "etf",
+        "institution",
+        "blackrock",
+        "adoption",
+        "wall street",
+        "bank",
+        "legal",
+        "government"
+      ],
+      "question": "Big funds now hold bitcoin, but the same prospectus says U.S. digital asset markets are in a state of regulatory uncertainty. What happens to your thesis if the rules change?",
+      "citations": [
+        {
+          "source_id": "S1",
+          "excerpt_id": "E4"
+        }
+      ]
+    },
+    {
+      "id": "btc-c-network",
+      "triggers": [
+        "network",
+        "secure",
+        "security",
+        "technology",
+        "decentral",
+        "miner",
+        "mining"
+      ],
+      "question": "The prospectus warns that a fork could hurt value, and that governance changes may not get enough support from users and miners. How would you know if that was happening?",
+      "citations": [
+        {
+          "source_id": "S1",
+          "excerpt_id": "E3"
+        },
+        {
+          "source_id": "S1",
+          "excerpt_id": "E2"
+        }
+      ]
+    },
+    {
+      "id": "btc-c-supply",
+      "triggers": [
+        "halving",
+        "supply",
+        "scarce",
+        "21 million",
+        "limited"
+      ],
+      "question": "I can't verify bitcoin's supply schedule from this source packet. Where did you check it, and does scarcity alone explain the price?",
+      "citations": [],
+      "open_point": "bitcoin's supply schedule"
+    },
+    {
+      "id": "btc-c-falsify",
+      "triggers": [],
+      "question": "What is one specific thing that would prove your thesis wrong, and how would you notice it?",
+      "citations": []
+    }
+  ]
+}

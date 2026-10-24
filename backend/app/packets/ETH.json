@@ -1,0 +1,147 @@
+{
+  "asset": "ETH",
+  "name": "Ether",
+  "as_of": "2026-10-24",
+  "release_status": "draft_needs_human_review",
+  "source_items": [
+    {
+      "id": "S1",
+      "type": "sec_edgar_filing",
+      "spoken": "BlackRock's iShares Ethereum Trust prospectus",
+      "title": "iShares Ethereum Trust ETF — Prospectus (Form 424B3)",
+      "publisher": "iShares Ethereum Trust ETF (SEC EDGAR, CIK 0002000638)",
+      "url": "https://www.sec.gov/Archives/edgar/data/0002000638/000143774926026297/etha20260806_424b3.htm",
+      "date": "2026-08-06",
+      "excerpts": [
+        {
+          "id": "E1",
+          "text": "the price of ether declined to below $1,600 in June 2026, representing a drawdown of more than 65%"
+        },
+        {
+          "id": "E2",
+          "text": "the Ethereum network could be subject to changes that may adversely affect the value of ether."
+        },
+        {
+          "id": "E3",
+          "text": "digital asset validator operations have evolved from individual users to “professionalized” validating operations"
+        },
+        {
+          "id": "E4",
+          "text": "Digital asset markets in the United States exist in a state of regulatory uncertainty"
+        },
+        {
+          "id": "E5",
+          "text": "abandon the Ethereum blockchain for other blockchain or digital asset networks or protocols"
+        }
+      ]
+    }
+  ],
+  "challenges": [
+    {
+      "id": "eth-c-drawdown",
+      "triggers": [
+        "price",
+        "up",
+        "rebound",
+        "cheap",
+        "dip",
+        "low",
+        "recover",
+        "moon",
+        "grow",
+        "undervalued"
+      ],
+      "question": "BlackRock's ether fund prospectus says ether fell below 1,600 dollars in June 2026, a drawdown of more than 65 percent. What makes you confident the reasons behind that drop are gone?",
+      "citations": [
+        {
+          "source_id": "S1",
+          "excerpt_id": "E1"
+        }
+      ]
+    },
+    {
+      "id": "eth-c-upgrade",
+      "triggers": [
+        "defi",
+        "app",
+        "smart contract",
+        "platform",
+        "developer",
+        "upgrade",
+        "technology",
+        "build"
+      ],
+      "question": "The prospectus says changes to the Ethereum network could hurt ether's value. How does your thesis hold up if an upgrade goes wrong?",
+      "citations": [
+        {
+          "source_id": "S1",
+          "excerpt_id": "E2"
+        }
+      ]
+    },
+    {
+      "id": "eth-c-staking",
+      "triggers": [
+        "stak",
+        "yield",
+        "validator",
+        "earn",
+        "decentral",
+        "secure"
+      ],
+      "question": "The prospectus notes validating has shifted from individuals to professional operations. Does that change how decentralized you think Ethereum really is?",
+      "citations": [
+        {
+          "source_id": "S1",
+          "excerpt_id": "E3"
+        }
+      ]
+    },
+    {
+      "id": "eth-c-competition",
+      "triggers": [
+        "solana",
+        "competition",
+        "fees",
+        "layer",
+        "l2",
+        "best",
+        "leader",
+        "dominant",
+        "win"
+      ],
+      "question": "The prospectus warns users could abandon Ethereum for other networks. Why would they stay?",
+      "citations": [
+        {
+          "source_id": "S1",
+          "excerpt_id": "E5"
+        }
+      ]
+    },
+    {
+      "id": "eth-c-regulation",
+      "triggers": [
+        "etf",
+        "sec",
+        "regulat",
+        "institution",
+        "blackrock",
+        "legal",
+        "government"
+      ],
+      "question": "The prospectus says U.S. digital asset markets are in a state of regulatory uncertainty. What happens to your thesis if ether is treated differently by regulators?",
+      "citations": [
+        {
+          "source_id": "S1",
+          "excerpt_id": "E4"
+        }
+      ]
+    },
+    {
+      "id": "eth-c-falsify",
+      "triggers": [],
+      "question": "What is one specific thing that would prove your thesis wrong, and how would you notice it?",
+      "citations": []
+    }
+  ]
+}

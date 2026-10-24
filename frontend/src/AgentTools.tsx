@@ -50,5 +50,17 @@ export function AgentTools({ onChange }: { onChange: () => void }) {
     return json(r);
   });
 
+  useConversationClientTool("challenge_thesis", async (p: Params) => {
+    const r = await api.challenge(str(p.asset), str(p.user_text), p.restart === true || p.restart === "true");
+    onChange();
+    return json(r);
+  });
+
+  useConversationClientTool("find_resources", async (p: Params) => {
+    const r = await api.resources(str(p.asset));
+    onChange();
+    return json({ say: r.say, error: r.error });
+  });
+
   return null;
 }

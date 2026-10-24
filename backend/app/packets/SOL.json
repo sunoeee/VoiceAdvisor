@@ -1,0 +1,227 @@
+{
+  "asset": "SOL",
+  "name": "Solana",
+  "as_of": "2026-10-24",
+  "release_status": "draft_needs_human_review",
+  "source_items": [
+    {
+      "id": "S1",
+      "type": "company_press_release",
+      "title": "Visa Expands Stablecoin Settlement Capabilities to Merchant Acquirers",
+      "publisher": "Visa Inc.",
+      "url": "https://usa.visa.com/about-visa/newsroom/press-releases.releaseId.19881.html",
+      "date": "2023-09-05",
+      "excerpts": [
+        {
+          "id": "E1",
+          "text": "Visa is expanding its stablecoin settlement capabilities to the high-performing Solana blockchain"
+        },
+        {
+          "id": "E2",
+          "text": "Visa has already moved millions of USDC between its partners over the Solana and Ethereum blockchain networks"
+        },
+        {
+          "id": "E3",
+          "text": "The Solana blockchain sees 400 millisecond block times, averages 400 transactions per second (TPS)"
+        }
+      ],
+      "spoken": "Visa's 2023 press release"
+    },
+    {
+      "id": "S2",
+      "type": "company_press_release",
+      "title": "Visa Launches Stablecoin Settlement in the United States, Marking a Breakthrough for Stablecoin Integration",
+      "publisher": "Visa Inc.",
+      "url": "https://usa.visa.com/about-visa/newsroom/press-releases.releaseId.21951.html",
+      "date": "2025-12-16",
+      "excerpts": [
+        {
+          "id": "E1",
+          "text": "which have started settling with Visa in USDC over the Solana blockchain.",
+          "context": "Refers to initial banking participants Cross River Bank and Lead Bank."
+        },
+        {
+          "id": "E2",
+          "text": "As of November 30, Visa’s monthly stablecoin settlement volume passed a $3.5 billion annualized run rate"
+        },
+        {
+          "id": "E3",
+          "text": "Visa is onboarding select U.S. partners now, with broader access expected through 2026."
+        }
+      ],
+      "spoken": "Visa's December 2025 press release"
+    },
+    {
+      "id": "S3",
+      "type": "sec_edgar_filing",
+      "title": "Fidelity Solana Fund — Prospectus (Form 424B3, Registration No. 333-288046)",
+      "publisher": "Fidelity Solana Fund (SEC EDGAR, CIK 0002063380)",
+      "url": "https://www.sec.gov/Archives/edgar/data/2063380/000119312526360128/d135723d424b3.htm",
+      "date": "2026-08-21",
+      "excerpts": [
+        {
+          "id": "E1",
+          "text": "the Solana network has experienced outages and performance disruptions in the past",
+          "locator": "SOL section — Proof-of-History Process"
+        },
+        {
+          "id": "E2",
+          "text": "concentrated stake could, under certain circumstances, adversely affect network security or performance.",
+          "locator": "SOL section — Forms of Attack Against the Solana Network"
+        },
+        {
+          "id": "E3",
+          "text": "the aggregate value of outstanding SOL is much smaller than that of bitcoin and many other digital assets",
+          "locator": "SOL section — Competition"
+        },
+        {
+          "id": "E4",
+          "text": "SOL trading prices experience high levels of volatility, and in some cases such volatility has been sudden and extreme.",
+          "locator": "Summary of Risk Factors"
+        },
+        {
+          "id": "E5",
+          "text": "The Solana network depends on developers for both monitoring and upgrading the software protocols",
+          "locator": "Summary of Risk Factors"
+        }
+      ],
+      "spoken": "Fidelity's Solana fund prospectus"
+    }
+  ],
+  "challenges": [
+    {
+      "id": "sol-c-share",
+      "triggers": [
+        "visa",
+        "payment",
+        "settle",
+        "adoption",
+        "usage",
+        "bank",
+        "usdc",
+        "stablecoin",
+        "real"
+      ],
+      "question": "Visa's $3.5 billion annualized run rate covers all of its stablecoin settlement. The release doesn't say how much runs on Solana. What evidence do you have that Solana's share is meaningful?",
+      "citations": [
+        {
+          "source_id": "S2",
+          "excerpt_id": "E2"
+        }
+      ],
+      "open_point": "how much of Visa's volume runs on Solana"
+    },
+    {
+      "id": "sol-c-speed",
+      "triggers": [
+        "fast",
+        "speed",
+        "cheap",
+        "tps",
+        "scal",
+        "throughput",
+        "quick"
+      ],
+      "question": "Visa cites 400 millisecond block times, but Fidelity's prospectus says the network has had outages and performance disruptions. Why would speed matter more than reliability to a payments partner?",
+      "citations": [
+        {
+          "source_id": "S1",
+          "excerpt_id": "E3"
+        },
+        {
+          "source_id": "S3",
+          "excerpt_id": "E1"
+        }
+      ],
+      "open_point": "Solana's current uptime"
+    },
+    {
+      "id": "sol-c-swing",
+      "triggers": [
+        "price",
+        "up",
+        "moon",
+        "grow",
+        "return",
+        "rise",
+        "go up",
+        "pump",
+        "gain"
+      ],
+      "question": "Fidelity's prospectus says SOL's price swings have at times been sudden and extreme. If SOL fell 30% with no news, what in your thesis explains why that wouldn't change your view?",
+      "citations": [
+        {
+          "source_id": "S3",
+          "excerpt_id": "E4"
+        }
+      ]
+    },
+    {
+      "id": "sol-c-competition",
+      "triggers": [
+        "ethereum",
+        "eth",
+        "competition",
+        "better",
+        "best",
+        "bitcoin",
+        "win",
+        "leader"
+      ],
+      "question": "Visa's 2023 release says it moved USDC over both Solana and Ethereum, and the prospectus says SOL's total value is much smaller than bitcoin's. What makes Solana the network that wins rather than one option among several?",
+      "citations": [
+        {
+          "source_id": "S1",
+          "excerpt_id": "E2"
+        },
+        {
+          "source_id": "S3",
+          "excerpt_id": "E3"
+        }
+      ]
+    },
+    {
+      "id": "sol-c-security",
+      "triggers": [
+        "secure",
+        "security",
+        "decentral",
+        "safe",
+        "validator",
+        "stake"
+      ],
+      "question": "The prospectus warns that concentrated stake could affect network security or performance. How would you check whether stake is concentrated today?",
+      "citations": [
+        {
+          "source_id": "S3",
+          "excerpt_id": "E2"
+        }
+      ],
+      "open_point": "how concentrated Solana's stake is today"
+    },
+    {
+      "id": "sol-c-devs",
+      "triggers": [
+        "developer",
+        "ecosystem",
+        "app",
+        "community",
+        "upgrade",
+        "build"
+      ],
+      "question": "The prospectus says the network depends on developers to monitor and upgrade its software. What happens to your thesis if that work slows down?",
+      "citations": [
+        {
+          "source_id": "S3",
+          "excerpt_id": "E5"
+        }
+      ]
+    },
+    {
+      "id": "sol-c-falsify",
+      "triggers": [],
+      "question": "What is one specific thing, published by Visa or in an SEC filing, that would prove your thesis wrong?",
+      "citations": []
+    }
+  ]
+}

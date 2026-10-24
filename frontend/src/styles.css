@@ -87,3 +87,13 @@ button.primary { background: var(--buy); border-color: var(--buy); color: #04140
 .side { font-size: 12px; font-weight: 700; text-transform: uppercase; }
 .side.buy { color: var(--buy); }
 .side.sell { color: var(--sell); }
+
+/* Devil's advocate */
+.devil { border-color: #7a2d3a; }
+.devil h2 { margin: 0; }
+.thesis { margin: 10px 0 6px; }
+.devil-turns { padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; margin: 8px 0 0; }
+.devil-q { line-height: 1.45; }
+.devil blockquote { margin: 6px 0; padding-left: 10px; border-left: 2px solid var(--line); font-style: italic; }
+.link { background: none; border: none; color: var(--muted); text-decoration: underline; cursor: pointer; padding: 0; }
+.resources { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 8px; }

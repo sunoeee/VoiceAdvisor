@@ -14,8 +14,10 @@ from pydantic import BaseModel
 
 from .broker import BrokerError, make_broker, make_market
 from .config import get_settings
+from .devil import Devil
 from .llm import LLM
 from .portfolio import snapshot
+from .resources import Resources
 from .trades import TradeDesk, TradeError
 
 logging.basicConfig(level=logging.INFO)
@@ -33,6 +35,8 @@ broker = make_broker(settings.broker_mode, settings.quote_asset)
 market = make_market(settings.market_mode, settings.quote_asset)
 desk = TradeDesk(broker, settings)
 llm = LLM(settings)
+devil = Devil(settings, llm.client)
+resources = Resources(settings)
 
 
 @app.exception_handler(TradeError)
@@ -57,6 +61,12 @@ class PrepareBody(BaseModel):
 
 class ConfirmBody(BaseModel):
     confirmation_id: str | None = None
+
+
+class ChallengeBody(BaseModel):
+    asset: str
+    text: str = ""
+    restart: bool = False
 
 
 # --- routes ---------------------------------------------------------------
@@ -150,3 +160,37 @@ def list_trades():
 def pending_trades():
     return {"pending": desk.pending()}
 
+
+
+# --- devil's advocate -----------------------------------------------------
+
+
+@app.post("/api/devil/challenge")
+def devil_challenge(body: ChallengeBody):
+    """Send the user's thesis (first call) or their answer (later calls); get the next question."""
+    return devil.challenge(body.asset, body.text[:1200], body.restart)
+
+
+@app.get("/api/devil")
+def devil_state():
+    return devil.state()
+
+
+@app.post("/api/devil/reset")
+def devil_reset():
+    devil.reset()
+    return {"ok": True}
+
+
+# --- resources ------------------------------------------------------------
+
+
+@app.get("/api/resources/{asset}")
+def gather_resources(asset: str):
+    """Vetted sources plus recent SEC filings that mention the asset (live from EDGAR)."""
+    return resources.gather(asset)
+
+
+@app.get("/api/resources")
+def last_resources():
+    return resources.last or {"asset": None}

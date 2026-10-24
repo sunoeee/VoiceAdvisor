@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Markets, PendingTrade, Portfolio, TradeRecord } from "./api";
+import type { DevilState, Markets, PendingTrade, Portfolio, ResourceItem, ResourceSet, TradeRecord } from "./api";
 
 const usd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 const qty = (n: number) => (n >= 1 ? n.toFixed(4) : n.toPrecision(4));
@@ -148,6 +148,99 @@ export function Transcript({ lines }: { lines: Line[] }) {
             </li>
           ))}
         </ul>
+      )}
+    </section>
+  );
+}
+
+export function DevilCard({ d, onReset }: { d: DevilState | null; onReset: () => void }) {
+  if (!d?.active) {
+    return (
+      <section className="card devil">
+        <div className="card-head">
+          <h2>Devil's advocate</h2>
+        </div>
+        <p className="muted small">
+          Tell Ticker why you like BTC, ETH or SOL and ask it to play devil's advocate. It asks up to three pointed questions,
+          each tied to an SEC filing or press release. It never tells you to buy or sell.
+        </p>
+      </section>
+    );
+  }
+  return (
+    <section className="card devil">
+      <div className="card-head">
+        <h2>Devil's advocate · {d.asset}</h2>
+        <button className="link small" onClick={onReset}>
+          Clear
+        </button>
+      </div>
+      <p className="thesis">
+        <span className="muted small">Your thesis: </span>
+        {d.thesis}
+      </p>
+      <ol className="devil-turns">
+        {d.turns?.map((t, i) => (
+          <li key={i}>
+            <div className="devil-q">
+              <span className="side sell">Q{i + 1}</span> {t.question}{" "}
+              <span className="badge muted">{t.source === "llm" ? "live AI" : "pre-written"}</span>
+            </div>
+            {t.citations.map((c) => (
+              <blockquote key={c.source_id + c.excerpt_id} className="small">
+                “{c.quote}” <span className="muted">— </span>
+                <a href={c.url} target="_blank" rel="noreferrer">
+                  {c.title}, {c.date}
+                </a>
+              </blockquote>
+            ))}
+            <div className="small">
+              <span className="muted">You: </span>
+              {t.answer ?? <em className="muted">waiting for your answer…</em>}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function ResourceList({ items }: { items: ResourceItem[] }) {
+  return (
+    <ul className="resources">
+      {items.map((r) => (
+        <li key={r.url}>
+          <a href={r.url} target="_blank" rel="noreferrer">
+            {r.title}
+          </a>
+          <div className="muted small">
+            {r.publisher} · {r.date}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function ResourcesCard({ r }: { r: ResourceSet | null }) {
+  if (!r?.asset) return null;
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Resources · {r.asset}</h2>
+        <span className="muted small">documents to read, not recommendations</span>
+      </div>
+      <div className="small muted">Vetted sources (what the devil cites)</div>
+      <ResourceList items={r.vetted ?? []} />
+      <div className="small muted" style={{ marginTop: 12 }}>
+        Recent SEC filings mentioning {r.asset} (live from EDGAR)
+      </div>
+      {r.edgar_ok === false ? (
+        <p className="small muted">Couldn't reach SEC EDGAR just now.</p>
+      ) : r.recent_filings?.length ? (
+        <ResourceList items={r.recent_filings} />
+      ) : (
+        <p className="small muted">None in the last four months.</p>
       )}
     </section>
   );

@@ -11,7 +11,7 @@ export function PortfolioCard({ p }: { p: Portfolio | null }) {
       <div className="card-head">
         <h2>Portfolio</h2>
         <span className={`badge ${p.broker === "mock" ? "warn" : "live"}`}>
-          {p.broker === "mock" ? "Mock data" : "Live · True Markets"}
+          {p.broker === "mock" ? "Mock data" : p.broker === "tensho" ? "Live · True Markets wallet" : "Live · True Markets"}
         </span>
       </div>
       <div className="total">{usd(p.total_usd)}</div>
@@ -34,7 +34,7 @@ export function PortfolioCard({ p }: { p: Portfolio | null }) {
   );
 }
 
-export function MarketCard({ markets }: { markets: (Markets & { error?: string; say?: string }) | null }) {
+export function MarketCard({ markets, liveTrading = false }: { markets: (Markets & { error?: string; say?: string }) | null; liveTrading?: boolean }) {
   if (!markets) return <section className="card">Loading market prices…</section>;
   const live = markets.source === "truemarkets" && !markets.error;
   const badge = markets.error ? "Prices unavailable" : live ? "Live · True Markets" : "Mock prices";
@@ -61,7 +61,7 @@ export function MarketCard({ markets }: { markets: (Markets & { error?: string; 
           {markets.unavailable.map((item) => item.asset).join(", ")} is not available on True Markets.
         </div>
       )}
-      <div className="muted small">Prices only. Confirming a trade still uses the mock portfolio.</div>
+      {!liveTrading && <div className="muted small">Prices only. Confirming a trade still uses the mock portfolio.</div>}
     </section>
   );
 }
@@ -111,7 +111,7 @@ export function TradeLog({ history }: { history: TradeRecord[] }) {
     <section className="card">
       <h2>Trades</h2>
       {history.length === 0 ? (
-        <div className="muted">No trades yet. Try “buy five dollars of ETH”.</div>
+        <div className="muted">No trades yet. Try “buy one dollar of SOL”.</div>
       ) : (
         <ul className="log">
           {history.map((t) => (

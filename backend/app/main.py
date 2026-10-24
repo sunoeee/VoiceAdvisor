@@ -12,12 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from .broker import BrokerError, make_broker, make_market
+from . import advice
+from .broker import BrokerError, make_broker
 from .config import get_settings
-from .devil import Devil
 from .llm import LLM
 from .portfolio import snapshot
-from .resources import Resources
 from .trades import TradeDesk, TradeError
 
 logging.basicConfig(level=logging.INFO)
@@ -32,11 +31,8 @@ app.add_middleware(
 )
 
 broker = make_broker(settings.broker_mode, settings.quote_asset)
-market = make_market(settings.market_mode, settings.quote_asset)
 desk = TradeDesk(broker, settings)
 llm = LLM(settings)
-devil = Devil(settings, llm.client)
-resources = Resources(settings)
 
 
 @app.exception_handler(TradeError)
@@ -59,14 +55,15 @@ class PrepareBody(BaseModel):
     usd: float
 
 
+class AdviseBody(BaseModel):
+    question: str
+    asset: str | None = None
+    usd_amount: float | None = None
+    percent_of_portfolio: float | None = None
+
+
 class ConfirmBody(BaseModel):
     confirmation_id: str | None = None
-
-
-class ChallengeBody(BaseModel):
-    asset: str
-    text: str = ""
-    restart: bool = False
 
 
 # --- routes ---------------------------------------------------------------
@@ -77,7 +74,6 @@ def health():
     return {
         "ok": True,
         "broker": broker.name,
-        "market": market.name,
         "llm_model": settings.llm_model,
         "max_trade_usd": settings.max_trade_usd,
         "allowed_assets": settings.allowed_asset_list,
@@ -89,44 +85,25 @@ def get_portfolio():
     return snapshot(broker, settings.quote_asset)
 
 
-def _price_payload(asset: str, price: float) -> dict:
-    return {
-        "asset": asset,
-        "price_usd": price,
-        "source": market.name,
-        "say": f"{asset} is at ${price:,.2f}.",
-    }
-
-
-@app.get("/api/markets")
-def get_markets():
-    prices = []
-    unavailable = []
-    for asset in settings.allowed_asset_list:
-        try:
-            prices.append(_price_payload(asset, market.get_price(asset)))
-        except BrokerError as e:
-            unavailable.append({"asset": asset, "error": str(e)})
-    if not prices:
-        raise BrokerError(unavailable[0]["error"] if unavailable else "No market prices available.")
-    spoken = ", ".join(p["say"].removesuffix(".") for p in prices)
-    if unavailable:
-        skipped = ", ".join(item["asset"] for item in unavailable)
-        spoken = f"{spoken}. {skipped} is not available"
-    return {"source": market.name, "prices": prices, "unavailable": unavailable, "say": f"{spoken}."}
-
-
 @app.get("/api/price/{asset}")
 def get_price(asset: str):
     asset = asset.upper()
-    return _price_payload(asset, market.get_price(asset))
+    price = broker.get_price(asset)
+    return {"asset": asset, "price_usd": price, "say": f"{asset} is at ${price:,.2f}."}
 
 
+def _moves(snap: dict) -> dict[str, float | None]:
+    return {p["symbol"]: broker.get_change_24h(p["symbol"]) for p in snap["positions"] if p["symbol"] != settings.quote_asset}
+
+
+@app.get("/api/brief")
 @app.get("/api/summary")
-def get_summary():
+def get_brief():
+    """Good-morning brief: portfolio + 24h moves, written by the open model."""
     snap = snapshot(broker, settings.quote_asset)
-    s = llm.summary(snap)
-    return {"portfolio": snap, "say": s["text"], "source": s["source"]}
+    moves = _moves(snap)
+    s = llm.morning_brief(snap, moves)
+    return {"portfolio": snap, "change_24h_pct": moves, "say": s["text"], "source": s["source"]}
 
 
 @app.get("/api/insights")
@@ -134,6 +111,16 @@ def get_insights():
     snap = snapshot(broker, settings.quote_asset)
     s = llm.insights(snap)
     return {"say": s["text"], "source": s["source"]}
+
+
+@app.post("/api/advise")
+def advise(body: AdviseBody):
+    """Educational guidance for 'should I invest X in Y?' questions."""
+    snap = snapshot(broker, settings.quote_asset)
+    ctx = advice.analyze(snap, body.question, body.asset, body.usd_amount, body.percent_of_portfolio,
+                         settings.allowed_asset_list)
+    g = llm.guidance(ctx)
+    return {"analysis": ctx, "say": g["text"], "source": g["source"]}
 
 
 @app.post("/api/trades/prepare")
@@ -160,37 +147,3 @@ def list_trades():
 def pending_trades():
     return {"pending": desk.pending()}
 
-
-
-# --- devil's advocate -----------------------------------------------------
-
-
-@app.post("/api/devil/challenge")
-def devil_challenge(body: ChallengeBody):
-    """Send the user's thesis (first call) or their answer (later calls); get the next question."""
-    return devil.challenge(body.asset, body.text[:1200], body.restart)
-
-
-@app.get("/api/devil")
-def devil_state():
-    return devil.state()
-
-
-@app.post("/api/devil/reset")
-def devil_reset():
-    devil.reset()
-    return {"ok": True}
-
-
-# --- resources ------------------------------------------------------------
-
-
-@app.get("/api/resources/{asset}")
-def gather_resources(asset: str):
-    """Vetted sources plus recent SEC filings that mention the asset (live from EDGAR)."""
-    return resources.gather(asset)
-
-
-@app.get("/api/resources")
-def last_resources():
-    return resources.last or {"asset": None}

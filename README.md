@@ -36,7 +36,7 @@ flowchart LR
 
 You need Python 3.10+, Node 20+, and (for summaries) [Ollama](https://ollama.com).
 Everything runs in **mock mode** by default: fake balances and prices, no keys
-needed. Build the whole app this way, then flip to live.
+needed.
 
 ### 1. Backend
 
@@ -48,7 +48,7 @@ cp .env.example .env
 uvicorn app.main:app --reload --port 8000
 ```
 
-Check it: <http://localhost:8000/api/health> and <http://localhost:8000/docs>.
+Check it with <http://localhost:8000/api/health> and <http://localhost:8000/docs>.
 Run the tests with `pytest -q`.
 
 ### 2. Open-source model

@@ -4,11 +4,11 @@ Check your crypto portfolio and place trades by voice. Ask "How's my
 portfolio?" and hear a briefing; say "Buy five dollars of ETH", hear the quote,
 say "Confirm", and the trade executes on the True Markets Gateway.
 
-Built at **Tech@NYU Shipyard Buildathon** (Oct 24, 2026).
+Built at **Tech@NYU Shipyard Buildathon** on Oct 24, 2026.
 
 - **Voice**: ElevenLabs Agents (speech-to-text, text-to-speech, tool calling)
 - **Trading**: True Markets Gateway API (`truemarkets` Python SDK)
-- **Analysis**: an open-weight model (Qwen 2.5 7B by default) served through any OpenAI-compatible endpoint (Ollama locally, or DigitalOcean)
+- **Analysis**: an open-weight model, Qwen 2.5 7B, served through Ollama locally
 
 > Educational demo. Trades are capped and always require confirmation. Not financial advice.
 
@@ -114,14 +114,7 @@ Most responses include `say`: a sentence the agent can read aloud verbatim.
 | Voice agent | `agent/`, `frontend/src/AgentTools.tsx` | _name_ |
 | UI | `frontend/src/App.tsx`, `frontend/src/components.tsx`, `frontend/src/styles.css` | _name_ |
 
-## Team workflow
 
-- `main` must always run and demo. Work on short branches: `feat/voice-confirm`, `fix/quote-expiry`.
-- Open small PRs and merge within 30 minutes; one teammate glances at each before merging.
-- Pull `main` often (at least every hour) to avoid big merge conflicts.
-- Never commit `.env`, `.env.local` or any key file. `.gitignore` covers the usual names; double-check `git status` before committing.
-- **2:30 PM checkpoint**: if the full voice trade flow doesn't work end to end, freeze features and fix only that.
-- **3:10 PM**: record a backup demo video. **3:30 PM**: submit on MLH.
 
 ## Demo script (3 minutes)
 

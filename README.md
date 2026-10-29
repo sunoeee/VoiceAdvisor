@@ -1,16 +1,17 @@
-# Talk-to-Trade
+# VoiceAdvisor
 
-Check your crypto portfolio and place trades by voice. Ask "How's my
+Check your crypto/investments portfolio and place trades by voice. Ask "How's my
 portfolio?" and hear a briefing; say "Buy five dollars of ETH", hear the quote,
-say "Confirm", and the trade executes on the True Markets Gateway.
+say "Confirm", and the trade will execute on the True Markets Gateway.
 
 Built at **Tech@NYU Shipyard Buildathon** on Oct 24, 2026.
 
+Tech stack:
 - **Voice**: ElevenLabs Agents (speech-to-text, text-to-speech, tool calling)
 - **Trading**: True Markets Gateway API (`truemarkets` Python SDK)
 - **Analysis**: an open-weight model, Qwen 2.5 7B, served through Ollama locally
 
-> Educational demo. Trades are capped and always require confirmation. Not financial advice.
+Note that this is an educational demo, trades are capped and always require confirmation. Analysis is not to be treated as financial advice.
 
 
 ## How it works
